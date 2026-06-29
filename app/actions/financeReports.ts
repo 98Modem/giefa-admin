@@ -230,6 +230,10 @@ function readStatementAmounts(cells: string[]) {
 }
 
 function parseStatementText(text: string): StatementTransaction[] {
+  if (/NET ASSET VALUE OF PORTFOLIO|PORTFOLIO SUMMARY|PERIODIC RETURN ON INVESTMENT/i.test(text)) {
+    return [];
+  }
+
   return text
     .split(/\r?\n/)
     .map((line) => line.trim())
@@ -397,6 +401,10 @@ export async function createMonthlyFinanceReport(formData: FormData) {
     parseStatementText(statementText),
     (approvedSubmissions ?? []) as ApprovedSubmission[]
   );
+  const approvedSubmissionTotal = (approvedSubmissions ?? []).reduce(
+    (total, submission) => total + Number(submission.amount ?? 0),
+    0
+  );
 
   if (parsedTransactions.length > 0) {
     const { error: transactionError } = await supabase
@@ -410,20 +418,33 @@ export async function createMonthlyFinanceReport(formData: FormData) {
     assertOk(transactionError, "Create statement transactions");
   }
 
-  const totalDeposits =
-    parsedTransactions.reduce((total, row) => total + row.credit, 0) ||
-    Math.max(valuationSummary.additional_investments ?? 0, 0);
-  const matchedDeposits = parsedTransactions
-    .filter((row) => row.matched_submission_id)
-    .reduce((total, row) => total + row.credit, 0);
+  const statementMovement =
+    valuationSummary.periodic_return ??
+    parsedTransactions.reduce((total, row) => total + row.credit, 0);
+  const matchedDeposits =
+    parsedTransactions.length > 0
+      ? parsedTransactions
+          .filter((row) => row.matched_submission_id)
+          .reduce((total, row) => total + row.credit, 0)
+      : approvedSubmissionTotal;
   const unmatchedDeposits =
-    parsedTransactions.length > 0 ? Math.max(totalDeposits - matchedDeposits, 0) : 0;
+    parsedTransactions.length > 0
+      ? Math.max(statementMovement - matchedDeposits, 0)
+      : Math.max(statementMovement - approvedSubmissionTotal, 0);
   const memberCount = new Set(
     (approvedSubmissions ?? []).map((submission) => submission.member_id)
   ).size;
   const exceptionCount =
-    parsedTransactions.filter((row) => row.match_status !== "exact").length +
-    Math.max((approvedSubmissions ?? []).length - parsedTransactions.filter((row) => row.matched_submission_id).length, 0);
+    parsedTransactions.length > 0
+      ? parsedTransactions.filter((row) => row.match_status !== "exact").length +
+        Math.max(
+          (approvedSubmissions ?? []).length -
+            parsedTransactions.filter((row) => row.matched_submission_id).length,
+          0
+        )
+      : approvedSubmissionTotal > statementMovement
+        ? 1
+        : 0;
 
   const { error: reportError } = await supabase
     .from("finance_monthly_reports")
@@ -433,7 +454,7 @@ export async function createMonthlyFinanceReport(formData: FormData) {
         statement_import_id: statementImport.id,
         opening_balance: resolvedOpeningBalance,
         closing_balance: resolvedClosingBalance,
-        total_deposits: totalDeposits,
+        total_deposits: statementMovement,
         approved_member_deposits: matchedDeposits,
         unmatched_deposits: unmatchedDeposits,
         member_count: memberCount,

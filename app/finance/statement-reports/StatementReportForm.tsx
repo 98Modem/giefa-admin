@@ -36,9 +36,19 @@ export function StatementReportForm({ defaultMonth }: { defaultMonth: string }) 
   const [statementRows, setStatementRows] = useState("");
   const [notes, setNotes] = useState("");
   const [summary, setSummary] = useState<ExtractedSummary | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
-  async function scanStatement() {
-    const file = fileRef.current?.files?.[0];
+  function assignDroppedFile(file: File) {
+    if (!fileRef.current) return;
+
+    const transfer = new DataTransfer();
+    transfer.items.add(file);
+    fileRef.current.files = transfer.files;
+    void scanStatement(file);
+  }
+
+  async function scanStatement(nextFile?: File) {
+    const file = nextFile ?? fileRef.current?.files?.[0];
 
     if (!file) return;
 
@@ -143,14 +153,40 @@ export function StatementReportForm({ defaultMonth }: { defaultMonth: string }) 
 
       <label className="mt-4 grid gap-2 text-sm font-medium text-gray-800 dark:text-gray-100">
         Bank statement file
-        <input
-          ref={fileRef}
-          type="file"
-          name="statement_file"
-          accept=".csv,.txt,.tsv,.pdf,application/pdf,text/plain,text/csv"
-          onChange={scanStatement}
-          className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-700 file:mr-4 file:rounded-md file:border-0 file:bg-brand-500 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white dark:border-white/15 dark:bg-white/5 dark:text-gray-100"
-        />
+        <div
+          onDragEnter={(event) => {
+            event.preventDefault();
+            setIsDragging(true);
+          }}
+          onDragOver={(event) => event.preventDefault()}
+          onDragLeave={(event) => {
+            event.preventDefault();
+            setIsDragging(false);
+          }}
+          onDrop={(event) => {
+            event.preventDefault();
+            setIsDragging(false);
+            const file = event.dataTransfer.files[0];
+            if (file) assignDroppedFile(file);
+          }}
+          className={`rounded-lg border border-dashed p-4 transition ${
+            isDragging
+              ? "border-brand-500 bg-brand-50 dark:border-brand-300 dark:bg-brand-500/15"
+              : "border-gray-300 bg-gray-50 dark:border-white/15 dark:bg-white/5"
+          }`}
+        >
+          <input
+            ref={fileRef}
+            type="file"
+            name="statement_file"
+            accept=".csv,.txt,.tsv,.pdf,application/pdf,text/plain,text/csv"
+            onChange={() => scanStatement()}
+            className="w-full text-sm text-gray-700 file:mr-4 file:rounded-md file:border-0 file:bg-brand-500 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white dark:text-gray-100"
+          />
+          <p className="mt-3 text-xs font-medium text-gray-500 dark:text-gray-300">
+            Drag and drop a statement here, or browse from your device.
+          </p>
+        </div>
       </label>
 
       <div className="mt-3 rounded-lg border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-800 dark:border-brand-400/30 dark:bg-brand-500/10 dark:text-brand-100">

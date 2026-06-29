@@ -50,6 +50,7 @@ export function ProfilePreferences({
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
   const [avatarMenuOpen, setAvatarMenuOpen] = useState(false);
+  const [isDraggingAvatar, setIsDraggingAvatar] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -208,6 +209,12 @@ export function ProfilePreferences({
     event.target.value = "";
   };
 
+  const assignDroppedAvatar = async (file: File) => {
+    setAvatarMenuOpen(false);
+    setIsDraggingAvatar(false);
+    await saveAvatarFile(file);
+  };
+
   const openCamera = async () => {
     setStatus("");
     setAvatarMenuOpen(false);
@@ -358,26 +365,51 @@ export function ProfilePreferences({
           disabled={saving}
         />
 
-        <div className="mt-5 flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={chooseImage}
-            disabled={saving}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
-          >
-            <PhotoIcon className="h-5 w-5" aria-hidden="true" />
-            Upload image
-          </button>
+        <div
+          onDragEnter={(event) => {
+            event.preventDefault();
+            setIsDraggingAvatar(true);
+          }}
+          onDragOver={(event) => event.preventDefault()}
+          onDragLeave={(event) => {
+            event.preventDefault();
+            setIsDraggingAvatar(false);
+          }}
+          onDrop={(event) => {
+            event.preventDefault();
+            const file = event.dataTransfer.files[0];
+            if (file) void assignDroppedAvatar(file);
+          }}
+          className={`mt-5 rounded-lg border border-dashed p-3 transition ${
+            isDraggingAvatar
+              ? "border-brand-500 bg-brand-50 dark:border-brand-300 dark:bg-brand-500/15"
+              : "border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-white/5"
+          }`}
+        >
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300">
+            Drop a profile image here or choose a source
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={chooseImage}
+              disabled={saving}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+            >
+              <PhotoIcon className="h-5 w-5" aria-hidden="true" />
+              Upload image
+            </button>
 
-          <button
-            type="button"
-            onClick={openCamera}
-            disabled={saving || cameraOpen}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 text-sm font-semibold text-white transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <CameraIcon className="h-5 w-5" aria-hidden="true" />
-            Use camera
-          </button>
+            <button
+              type="button"
+              onClick={openCamera}
+              disabled={saving || cameraOpen}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 text-sm font-semibold text-white transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <CameraIcon className="h-5 w-5" aria-hidden="true" />
+              Use camera
+            </button>
+          </div>
         </div>
 
         {cameraOpen && (

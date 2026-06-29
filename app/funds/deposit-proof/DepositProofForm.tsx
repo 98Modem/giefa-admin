@@ -43,6 +43,7 @@ export function DepositProofForm({ action }: DepositProofFormProps) {
   const [selectedFileName, setSelectedFileName] = useState("");
   const [extraction, setExtraction] = useState<Extraction | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
+  const [isDraggingProof, setIsDraggingProof] = useState(false);
 
   const proofRef = useRef<HTMLInputElement>(null);
   const amountRef = useRef<HTMLInputElement>(null);
@@ -66,8 +67,8 @@ export function DepositProofForm({ action }: DepositProofFormProps) {
     };
   }, [previewUrl]);
 
-  function handleProofChange() {
-    const file = proofRef.current?.files?.[0];
+  function handleProofChange(nextFile?: File) {
+    const file = nextFile ?? proofRef.current?.files?.[0];
     setExtraction(null);
     setScanError(null);
 
@@ -80,6 +81,15 @@ export function DepositProofForm({ action }: DepositProofFormProps) {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setSelectedFileName(file.name);
     setPreviewUrl(URL.createObjectURL(file));
+  }
+
+  function assignDroppedProof(file: File) {
+    if (!proofRef.current) return;
+
+    const transfer = new DataTransfer();
+    transfer.items.add(file);
+    proofRef.current.files = transfer.files;
+    handleProofChange(file);
   }
 
   function applyExtraction(next: Extraction) {
@@ -166,11 +176,36 @@ export function DepositProofForm({ action }: DepositProofFormProps) {
                 name="proof"
                 type="file"
                 accept="image/png,image/jpeg,image/webp"
-                onChange={handleProofChange}
+                onChange={() => handleProofChange()}
                 className="sr-only"
               />
 
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <div
+                onDragEnter={(event) => {
+                  event.preventDefault();
+                  setIsDraggingProof(true);
+                }}
+                onDragOver={(event) => event.preventDefault()}
+                onDragLeave={(event) => {
+                  event.preventDefault();
+                  setIsDraggingProof(false);
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  setIsDraggingProof(false);
+                  const file = event.dataTransfer.files[0];
+                  if (file) assignDroppedProof(file);
+                }}
+                className={`mt-4 rounded-xl border border-dashed p-3 transition ${
+                  isDraggingProof
+                    ? "border-brand-500 bg-brand-50 dark:border-brand-300 dark:bg-brand-500/15"
+                    : "border-gray-300 bg-gray-50 dark:border-white/15 dark:bg-black/20"
+                }`}
+              >
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300">
+                  Drop screenshot here or browse
+                </p>
+                <div className="grid gap-3 sm:grid-cols-2">
                 <button
                   type="button"
                   onClick={() => proofRef.current?.click()}
@@ -186,6 +221,7 @@ export function DepositProofForm({ action }: DepositProofFormProps) {
                 >
                   {isScanning ? "Scanning proof..." : "Scan with AI"}
                 </button>
+                </div>
               </div>
 
               <div className="mt-4 rounded-lg border border-dashed border-gray-300 bg-gray-50 p-3 dark:border-white/15 dark:bg-black/20">

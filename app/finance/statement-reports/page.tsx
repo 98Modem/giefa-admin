@@ -7,7 +7,6 @@ import {
   getDepositSubmissions,
   memberName,
   money,
-  sumBy,
 } from "@/app/lib/giefa/liveData";
 import { supabaseServer } from "@/app/lib/supabase/server";
 import { StatementReportForm } from "./StatementReportForm";
@@ -66,13 +65,6 @@ export default async function StatementReportsPage() {
     })
   );
 
-  const matchedValue = sumBy(latestTransactions, (row) =>
-    row.matched_submission_id ? row.credit : 0
-  );
-  const unmatchedValue = sumBy(latestTransactions, (row) =>
-    row.matched_submission_id ? 0 : row.credit
-  );
-
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <div className="border-b border-gray-200 pb-5 dark:border-white/20">
@@ -94,9 +86,9 @@ export default async function StatementReportsPage() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
           {[
             ["Latest report", latestReport?.reporting_month ?? "No report", "Reporting month"],
-            ["Matched deposits", money(matchedValue), "Approved submissions found"],
-            ["Unmatched deposits", money(unmatchedValue), "Needs finance review"],
-            ["Exceptions", String(latestReport?.exception_count ?? 0), "Possible and unmatched rows"],
+            ["Approved deposits", money(latestReport?.approved_member_deposits), "Member submissions posted"],
+            ["Return / variance", money(latestReport?.unmatched_deposits), "Statement movement minus approved deposits"],
+            ["Exceptions", String(latestReport?.exception_count ?? 0), "Needs finance review"],
           ].map(([label, value, detail]) => (
             <div
               key={label}
@@ -129,7 +121,7 @@ export default async function StatementReportsPage() {
             <table className="min-w-full text-left text-sm">
               <thead className="bg-gray-50 text-xs uppercase text-gray-500 dark:bg-white/5 dark:text-gray-200">
                 <tr>
-                  {["Month", "Deposits", "Matched", "Unmatched", "Closing", "File", "Status"].map((column) => (
+                  {["Month", "Statement Movement", "Approved Deposits", "Return / Variance", "Closing", "File", "Status"].map((column) => (
                     <th key={column} className="px-5 py-3 font-semibold">
                       {column}
                     </th>
@@ -187,17 +179,17 @@ export default async function StatementReportsPage() {
       <section className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm dark:border-white/15 dark:bg-white/10">
         <div className="border-b border-gray-200 px-5 py-4 dark:border-white/15">
           <h2 className="text-base font-semibold text-gray-900 dark:text-white">
-            Latest Statement Matching
+            Detailed Transaction Matching
           </h2>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-300">
             {latestImport
               ? `${latestImport.reporting_month} import from ${dateLabel(latestImport.created_at)}`
-              : "Upload a statement to see matching results."}
+              : "Upload a statement to see transaction matching results."}
           </p>
         </div>
         {latestTransactions.length === 0 ? (
           <p className="px-5 py-8 text-sm text-gray-500 dark:text-gray-200">
-            No parsed statement transactions are available yet.
+            No individual bank-credit transactions were parsed from the latest statement. This is expected for SBG valuation statements, which summarize portfolio performance instead of listing every member deposit.
           </p>
         ) : (
           <div className="overflow-x-auto">
