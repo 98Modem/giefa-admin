@@ -1,0 +1,5 @@
+members table
+id uuid primary key
+auth_user_id uuid references auth.users(id)
+role text -- admin | chairman | general_sec | treasurer | member
+status text -- pending | approved | suspended

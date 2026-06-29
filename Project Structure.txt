@@ -1,0 +1,22 @@
+app/
+├─ dashboard/
+│  ├─ layout.tsx          ← Dashboard shell (sidebar + header)
+│  ├─ page.tsx            ← Dashboard content (your code already)
+│  ├─ profile/
+│  │  └─ page.tsx         ← Profile page (from profile.html)
+│
+├─ components/
+│  ├─ layout/
+│  │  ├─ Sidebar.tsx
+│  │  ├─ Header.tsx
+│  │  ├─ UserMenu.tsx
+│  │  └─ NotificationMenu.tsx
+│  │
+│  ├─ ui/                 ← Reusable UI (buttons, cards)
+│  ├─ dashboard/          ← Dashboard-only widgets
+│
+├─ lib/
+│  ├─ supabase/
+│  ├─ auth.ts
+│
+└─ types/

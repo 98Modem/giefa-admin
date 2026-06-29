@@ -1,0 +1,10 @@
+<svg viewBox="0 0 1080 1080" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <filter id="giefaExactLogoLift" x="108" y="100" width="864" height="886">
+      <feDropShadow dx="0" dy="28" stdDeviation="28" flood-color="#020617" flood-opacity="0.32"/>
+    </filter>
+  </defs>
+  <g filter="url(#giefaExactLogoLift)">
+    <image href="./auth-logo.png" x="120" y="112" width="840" height="840" preserveAspectRatio="xMidYMid meet"/>
+  </g>
+</svg>
