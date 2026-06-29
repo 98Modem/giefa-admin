@@ -23,6 +23,19 @@ type ApprovedSubmission = {
   member_id: string;
 };
 
+type ValuationSummary = {
+  statement_date: string | null;
+  period_start: string | null;
+  period_end: string | null;
+  net_asset_value: number | null;
+  opening_balance: number | null;
+  additional_investments: number | null;
+  periodic_return: number | null;
+  actual_after_tax_return: number | null;
+  ytd_return_percent: number | null;
+  closing_balance: number | null;
+};
+
 function getString(formData: FormData, key: string) {
   const value = formData.get(key);
   return typeof value === "string" ? value.trim() : "";
@@ -55,6 +68,17 @@ function parseMoney(value: string | undefined) {
   return Number.isFinite(number) ? Math.abs(number) : 0;
 }
 
+function parseSignedMoney(value: string | undefined) {
+  if (!value) return null;
+  const normalized = value.replace(/[^\d().-]/g, "");
+  const negative = /^\(.+\)$/.test(normalized);
+  const number = Number(normalized.replace(/[()]/g, ""));
+
+  if (!Number.isFinite(number)) return null;
+
+  return negative ? -number : number;
+}
+
 function parseDate(value: string | undefined) {
   if (!value) return null;
   const trimmed = value.trim();
@@ -72,6 +96,62 @@ function parseDate(value: string | undefined) {
   const date = new Date(Number(fullYear), Number(month) - 1, Number(day));
 
   return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10);
+}
+
+function parseLongDate(value: string | undefined) {
+  if (!value) return null;
+  const date = new Date(value.trim());
+
+  return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10);
+}
+
+function firstNumberAfter(text: string, label: RegExp) {
+  const match = text.match(label);
+  return parseSignedMoney(match?.[1]);
+}
+
+function parseValuationSummary(text: string): ValuationSummary {
+  const normalized = text.replace(/\s+/g, " ");
+  const periodMatch = normalized.match(
+    /Valuation Period\s+(\d{1,2}\/\d{1,2}\/\d{4})\s+To\s+(\d{1,2}\/\d{1,2}\/\d{4})/i
+  );
+  const statementDateMatch = normalized.match(
+    /Statement Of Account As At\s+([A-Za-z]+\s+\d{1,2},\s+\d{4})/i
+  );
+
+  return {
+    statement_date: parseLongDate(statementDateMatch?.[1]),
+    period_start: parseDate(periodMatch?.[1]),
+    period_end: parseDate(periodMatch?.[2]),
+    net_asset_value: firstNumberAfter(
+      normalized,
+      /NET ASSET VALUE OF PORTFOLIO \(NAV\)\s+([\d,]+(?:\.\d+)?)/i
+    ),
+    opening_balance: firstNumberAfter(
+      normalized,
+      /OPENING BALANCE\s+([\d,]+(?:\.\d+)?)/i
+    ),
+    additional_investments: firstNumberAfter(
+      normalized,
+      /ADDITIONAL INVESTMENTS\/\(WITHDRAWALS\) \(NET\):\s+(\(?[\d,]+(?:\.\d+)?\)?)/i
+    ),
+    periodic_return: firstNumberAfter(
+      normalized,
+      /PERIODIC RETURN ON INVESTMENT\s+([\d,]+(?:\.\d+)?)/i
+    ),
+    actual_after_tax_return: firstNumberAfter(
+      normalized,
+      /ACTUAL AFTER TAX RETURN ON INVESTMENT \(AATR\)\s+([\d,]+(?:\.\d+)?)/i
+    ),
+    ytd_return_percent: firstNumberAfter(
+      normalized,
+      /YTD RETURN \(%\)\s+([\d,]+(?:\.\d+)?)/i
+    ),
+    closing_balance: firstNumberAfter(
+      normalized,
+      /CLOSING BALANCE\s+([\d,]+(?:\.\d+)?)/i
+    ),
+  };
 }
 
 function splitStatementLine(line: string) {
@@ -231,15 +311,28 @@ export async function createMonthlyFinanceReport(formData: FormData) {
     }
   }
 
+  const valuationSummary = parseValuationSummary(statementText);
+  const resolvedOpeningBalance =
+    openingBalance || valuationSummary.opening_balance || 0;
+  const resolvedClosingBalance =
+    closingBalance || valuationSummary.closing_balance || 0;
+
   const { data: statementImport, error: importError } = await supabase
     .from("bank_statement_imports")
     .insert({
       reporting_month: reportingMonth,
       statement_file_url: statementFilePath,
       original_file_name: isUploadableStatement(statementFile) ? statementFile.name : null,
-      opening_balance: openingBalance,
-      closing_balance: closingBalance,
-      notes: notes || null,
+      opening_balance: resolvedOpeningBalance,
+      closing_balance: resolvedClosingBalance,
+      notes: [
+        notes,
+        statementText
+          ? `Extracted valuation summary: ${JSON.stringify(valuationSummary)}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join("\n\n") || null,
       uploaded_by: actor.id,
       status: "processed",
     })
@@ -274,11 +367,14 @@ export async function createMonthlyFinanceReport(formData: FormData) {
     assertOk(transactionError, "Create statement transactions");
   }
 
-  const totalDeposits = parsedTransactions.reduce((total, row) => total + row.credit, 0);
+  const totalDeposits =
+    parsedTransactions.reduce((total, row) => total + row.credit, 0) ||
+    Math.max(valuationSummary.additional_investments ?? 0, 0);
   const matchedDeposits = parsedTransactions
     .filter((row) => row.matched_submission_id)
     .reduce((total, row) => total + row.credit, 0);
-  const unmatchedDeposits = Math.max(totalDeposits - matchedDeposits, 0);
+  const unmatchedDeposits =
+    parsedTransactions.length > 0 ? Math.max(totalDeposits - matchedDeposits, 0) : 0;
   const memberCount = new Set(
     (approvedSubmissions ?? []).map((submission) => submission.member_id)
   ).size;
@@ -292,14 +388,24 @@ export async function createMonthlyFinanceReport(formData: FormData) {
       {
         reporting_month: reportingMonth,
         statement_import_id: statementImport.id,
-        opening_balance: openingBalance,
-        closing_balance: closingBalance,
+        opening_balance: resolvedOpeningBalance,
+        closing_balance: resolvedClosingBalance,
         total_deposits: totalDeposits,
         approved_member_deposits: matchedDeposits,
         unmatched_deposits: unmatchedDeposits,
         member_count: memberCount,
         exception_count: exceptionCount,
-        notes: notes || null,
+        notes: [
+          notes,
+          valuationSummary.periodic_return !== null
+            ? `Periodic return: ${valuationSummary.periodic_return}`
+            : "",
+          valuationSummary.ytd_return_percent !== null
+            ? `YTD return: ${valuationSummary.ytd_return_percent}%`
+            : "",
+        ]
+          .filter(Boolean)
+          .join("\n") || null,
         status: "draft",
         prepared_by: actor.id,
       },

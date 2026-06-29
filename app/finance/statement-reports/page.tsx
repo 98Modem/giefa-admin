@@ -101,9 +101,9 @@ export default async function StatementReportsPage() {
               Upload statement and generate draft
             </h2>
             <p className="text-sm leading-6 text-gray-600 dark:text-gray-200">
-              CSV/TXT statement rows are parsed immediately. PDF bank statements
-              are stored now; paste copied transaction text until PDF extraction
-              is connected.
+              SBG valuation PDFs are stored as the official file. Paste copied
+              PDF text or OCR output and GIEFA extracts opening balance, closing
+              balance, periodic return, YTD return, and investments.
             </p>
           </div>
 
@@ -153,7 +153,7 @@ export default async function StatementReportsPage() {
             <textarea
               name="statement_rows"
               rows={8}
-              placeholder="Paste rows like: 06/01/2026, Godfrey Bulega deposit REF123, 200000, 1221123"
+              placeholder="Paste SBG valuation text or transaction rows. Example: OPENING BALANCE 1,221,123.46 ... PERIODIC RETURN ON INVESTMENT 311,597.32 ... CLOSING BALANCE 1,532,720.78"
               className="resize-y rounded-lg border border-gray-200 bg-white px-3 py-3 text-gray-900 outline-none focus:border-brand-500 dark:border-white/15 dark:bg-white/10 dark:text-white"
             />
           </label>
