@@ -57,24 +57,6 @@ function isUploadableStatement(file: FormDataEntryValue | null): file is File {
   return file instanceof File && file.size > 0;
 }
 
-function isPdfStatement(file: File) {
-  return file.type === "application/pdf" || /\.pdf$/i.test(file.name);
-}
-
-async function extractPdfText(file: File) {
-  const { PDFParse } = await import("pdf-parse");
-  const parser = new PDFParse({
-    data: Buffer.from(await file.arrayBuffer()),
-  });
-
-  try {
-    const result = await parser.getText();
-    return result.text.trim();
-  } finally {
-    await parser.destroy();
-  }
-}
-
 function normalizeReference(value: string | null | undefined) {
   return (value ?? "").replace(/[^a-z0-9]/gi, "").toLowerCase();
 }
@@ -367,10 +349,7 @@ export async function createMonthlyFinanceReport(formData: FormData) {
       });
     assertOk(uploadError, "Upload bank statement");
 
-    if (isPdfStatement(statementFile)) {
-      const pdfText = await extractPdfText(statementFile);
-      statementText = `${statementText}\n${pdfText}`.trim();
-    } else if (/text|csv|plain|tab-separated/i.test(statementFile.type) || /\.(csv|txt|tsv)$/i.test(statementFile.name)) {
+    if (/text|csv|plain|tab-separated/i.test(statementFile.type) || /\.(csv|txt|tsv)$/i.test(statementFile.name)) {
       statementText = `${statementText}\n${await statementFile.text()}`.trim();
     }
   }
