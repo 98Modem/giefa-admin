@@ -136,6 +136,38 @@ export type FinanceMonthlyReportRecord = {
   prepared_by: string | null;
   created_at: string | null;
   updated_at: string | null;
+  manual_interest_amount?: number | null;
+  calculated_interest_amount?: number | null;
+  variance_amount?: number | null;
+  variance_status?: string | null;
+};
+
+export type FinanceInterestAllocationRecord = {
+  id: string;
+  report_id: string;
+  reporting_month: string;
+  member_id: string;
+  opening_investment_balance: number | null;
+  month_investment_deposits: number | null;
+  weighted_balance: number | null;
+  allocation_weight: number | null;
+  interest_amount: number | null;
+  days_in_month: number | null;
+  calculation_method: string | null;
+  generated_at: string | null;
+};
+
+export type FinanceReportEditRequestRecord = {
+  id: string;
+  report_id: string;
+  requested_by: string | null;
+  approved_by: string | null;
+  reason: string | null;
+  chairman_note: string | null;
+  status: string | null;
+  created_at: string | null;
+  approved_at: string | null;
+  applied_at: string | null;
 };
 
 export type MemberLookup = Record<string, MemberRecord>;
@@ -318,14 +350,65 @@ export async function getBankStatementTransactions(importId?: string) {
 
 export async function getFinanceMonthlyReports() {
   const supabase = await supabaseServer();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("finance_monthly_reports")
     .select(
-      "id, reporting_month, statement_import_id, opening_balance, closing_balance, total_deposits, approved_member_deposits, unmatched_deposits, member_count, exception_count, notes, status, prepared_by, created_at, updated_at"
+      "id, reporting_month, statement_import_id, opening_balance, closing_balance, total_deposits, approved_member_deposits, unmatched_deposits, member_count, exception_count, notes, status, prepared_by, created_at, updated_at, manual_interest_amount, calculated_interest_amount, variance_amount, variance_status"
     )
     .order("reporting_month", { ascending: false });
 
+  if (error) {
+    const { data: fallback } = await supabase
+      .from("finance_monthly_reports")
+      .select(
+        "id, reporting_month, statement_import_id, opening_balance, closing_balance, total_deposits, approved_member_deposits, unmatched_deposits, member_count, exception_count, notes, status, prepared_by, created_at, updated_at"
+      )
+      .order("reporting_month", { ascending: false });
+
+    return (fallback ?? []) as FinanceMonthlyReportRecord[];
+  }
+
   return (data ?? []) as FinanceMonthlyReportRecord[];
+}
+
+export async function getFinanceInterestAllocations(reportId?: string) {
+  const supabase = await supabaseServer();
+  let query = supabase
+    .from("finance_interest_allocations")
+    .select(
+      "id, report_id, reporting_month, member_id, opening_investment_balance, month_investment_deposits, weighted_balance, allocation_weight, interest_amount, days_in_month, calculation_method, generated_at"
+    )
+    .order("interest_amount", { ascending: false });
+
+  if (reportId) {
+    query = query.eq("report_id", reportId);
+  }
+
+  const { data, error } = await query;
+
+  if (error) return [];
+
+  return (data ?? []) as FinanceInterestAllocationRecord[];
+}
+
+export async function getFinanceReportEditRequests(reportId?: string) {
+  const supabase = await supabaseServer();
+  let query = supabase
+    .from("finance_report_edit_requests")
+    .select(
+      "id, report_id, requested_by, approved_by, reason, chairman_note, status, created_at, approved_at, applied_at"
+    )
+    .order("created_at", { ascending: false });
+
+  if (reportId) {
+    query = query.eq("report_id", reportId);
+  }
+
+  const { data, error } = await query;
+
+  if (error) return [];
+
+  return (data ?? []) as FinanceReportEditRequestRecord[];
 }
 
 export function sumBy<T>(

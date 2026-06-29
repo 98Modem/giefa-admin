@@ -18,13 +18,13 @@ export default async function ChairmanFinanceReportsPage() {
         { label: "Ready for Review", value: String(readyForReview.length), detail: "Draft reports" },
         { label: "Report Archive", value: String(reports.length), detail: "Generated months" },
         { label: "Exceptions", value: String(sumBy(reports, (report) => report.exception_count)), detail: "Open finance questions" },
-        { label: "Matched Value", value: money(sumBy(reports, (report) => report.approved_member_deposits)), detail: "Bank matched deposits" },
+        { label: "Approved Value", value: money(sumBy(reports, (report) => report.approved_member_deposits)), detail: "Posted member deposits" },
       ]}
       sections={[
         {
           title: "Leadership Review",
-          body: "Chairman access focuses on oversight, finance accountability, and unresolved statement exceptions.",
-          items: ["Read monthly summaries", "Review unmatched deposits", "Compare closing balances"],
+          body: "Chairman access focuses on oversight, finance accountability, edit approvals, and unresolved statement variances.",
+          items: ["Read monthly summaries", "Approve report edits", "Compare closing balances"],
         },
         {
           title: "Meeting Preparation",
@@ -33,11 +33,11 @@ export default async function ChairmanFinanceReportsPage() {
         },
       ]}
       table={{
-        columns: ["Period", "Total Deposits", "Unmatched", "Members", "Exceptions", "Status"],
+        columns: ["Period", "Statement Movement", "Interest / Variance", "Members", "Exceptions", "Status"],
         rows: reports.map((report) => [
           report.reporting_month,
           money(report.total_deposits),
-          money(report.unmatched_deposits),
+          money(report.calculated_interest_amount ?? report.unmatched_deposits),
           String(report.member_count ?? 0),
           String(report.exception_count ?? 0),
           report.status ?? "draft",

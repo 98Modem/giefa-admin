@@ -311,6 +311,7 @@ export async function createMonthlyFinanceReport(formData: FormData) {
   const reportingMonth = getString(formData, "reporting_month");
   const openingBalance = getNumber(formData, "opening_balance");
   const closingBalance = getNumber(formData, "closing_balance");
+  const manualInterestAmount = getNumber(formData, "manual_interest_amount");
   const notes = getString(formData, "notes");
   const pastedRows = getString(formData, "statement_rows");
   const statementFile = formData.get("statement_file");
@@ -421,6 +422,7 @@ export async function createMonthlyFinanceReport(formData: FormData) {
   const statementMovement =
     valuationSummary.periodic_return ??
     parsedTransactions.reduce((total, row) => total + row.credit, 0);
+  const reportVariance = statementMovement - approvedSubmissionTotal;
   const matchedDeposits =
     parsedTransactions.length > 0
       ? parsedTransactions
@@ -430,7 +432,7 @@ export async function createMonthlyFinanceReport(formData: FormData) {
   const unmatchedDeposits =
     parsedTransactions.length > 0
       ? Math.max(statementMovement - matchedDeposits, 0)
-      : Math.max(statementMovement - approvedSubmissionTotal, 0);
+      : reportVariance;
   const memberCount = new Set(
     (approvedSubmissions ?? []).map((submission) => submission.member_id)
   ).size;
@@ -445,6 +447,8 @@ export async function createMonthlyFinanceReport(formData: FormData) {
       : approvedSubmissionTotal > statementMovement
         ? 1
         : 0;
+  const calculatedInterest =
+    manualInterestAmount > 0 ? manualInterestAmount : Math.max(reportVariance, 0);
 
   const { error: reportError } = await supabase
     .from("finance_monthly_reports")
@@ -464,6 +468,9 @@ export async function createMonthlyFinanceReport(formData: FormData) {
           valuationSummary.periodic_return !== null
             ? `Periodic return: ${valuationSummary.periodic_return}`
             : "",
+          manualInterestAmount > 0
+            ? `Manual monthly interest: ${manualInterestAmount}`
+            : "",
           valuationSummary.ytd_return_percent !== null
             ? `YTD return: ${valuationSummary.ytd_return_percent}%`
             : "",
@@ -476,6 +483,72 @@ export async function createMonthlyFinanceReport(formData: FormData) {
       { onConflict: "reporting_month" }
     );
   assertOk(reportError, "Generate monthly finance report");
+
+  await supabase.rpc("recalculate_monthly_interest_allocations_v1", {
+    p_reporting_month: reportingMonth,
+    p_manual_interest_amount:
+      manualInterestAmount > 0 ? manualInterestAmount : calculatedInterest,
+  });
+
+  revalidatePath("/finance/statement-reports");
+  revalidatePath("/finance/reports");
+  revalidatePath("/chairman/finance-reports");
+}
+
+export async function requestFinanceReportEdit(formData: FormData) {
+  const supabase = await supabaseServer();
+  const reportId = getString(formData, "report_id");
+  const reason = getString(formData, "reason");
+
+  if (!reportId) return;
+
+  const { error } = await supabase.rpc("request_finance_report_edit_v1", {
+    p_report_id: reportId,
+    p_reason: reason || "Finance needs to correct report inputs.",
+  });
+  assertOk(error, "Request finance report edit");
+
+  revalidatePath("/finance/statement-reports");
+  revalidatePath("/finance/reports");
+  revalidatePath("/chairman/finance-reports");
+}
+
+export async function approveFinanceReportEdit(formData: FormData) {
+  const supabase = await supabaseServer();
+  const requestId = getString(formData, "request_id");
+  const note = getString(formData, "chairman_note");
+  const approved = getString(formData, "decision") !== "reject";
+
+  if (!requestId) return;
+
+  const { error } = await supabase.rpc("approve_finance_report_edit_v1", {
+    p_request_id: requestId,
+    p_approved: approved,
+    p_note: note || null,
+  });
+  assertOk(error, "Approve finance report edit");
+
+  revalidatePath("/finance/statement-reports");
+  revalidatePath("/finance/reports");
+  revalidatePath("/chairman/finance-reports");
+}
+
+export async function applyFinanceReportEdit(formData: FormData) {
+  const supabase = await supabaseServer();
+  const requestId = getString(formData, "request_id");
+  const manualInterestAmount = getNumber(formData, "manual_interest_amount");
+  const manualDepositAdjustment = getNumber(formData, "manual_deposit_adjustment");
+  const notes = getString(formData, "notes");
+
+  if (!requestId) return;
+
+  const { error } = await supabase.rpc("apply_finance_report_edit_v1", {
+    p_request_id: requestId,
+    p_manual_interest_amount: manualInterestAmount > 0 ? manualInterestAmount : null,
+    p_manual_member_deposit_adjustment: manualDepositAdjustment,
+    p_notes: notes || null,
+  });
+  assertOk(error, "Apply finance report edit");
 
   revalidatePath("/finance/statement-reports");
   revalidatePath("/finance/reports");

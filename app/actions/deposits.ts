@@ -117,16 +117,33 @@ export async function approveDepositSubmission(formData: FormData) {
 
   if (!submissionId) return;
 
+  const { data: submission } = await supabase
+    .from("deposit_submissions")
+    .select("contribution_month")
+    .eq("id", submissionId)
+    .maybeSingle<{ contribution_month: string | null }>();
+
   const { error } = await supabase.rpc("approve_deposit_submission_v1", {
     p_submission_id: submissionId,
   });
   assertOk(error, "Approve deposit submission");
 
+  if (submission?.contribution_month) {
+    await supabase.rpc("recalculate_monthly_interest_allocations_v1", {
+      p_reporting_month: submission.contribution_month,
+      p_manual_interest_amount: null,
+    });
+  }
+
   revalidatePath("/finance/deposit-submissions");
   revalidatePath("/finance/monthly-savings");
+  revalidatePath("/finance/statement-reports");
+  revalidatePath("/finance/reports");
+  revalidatePath("/chairman/finance-reports");
   revalidatePath("/dashboard");
   revalidatePath("/account/emergency-fund");
   revalidatePath("/account/investment-fund");
+  revalidatePath("/account/interest");
 }
 
 export async function rejectDepositSubmission(formData: FormData) {

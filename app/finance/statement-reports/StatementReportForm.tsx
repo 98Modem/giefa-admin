@@ -115,7 +115,7 @@ export function StatementReportForm({ defaultMonth }: { defaultMonth: string }) 
         </p>
       </div>
 
-      <div className="mt-5 grid gap-4 sm:grid-cols-3">
+      <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <label className="grid gap-2 text-sm font-medium text-gray-800 dark:text-gray-100">
           Reporting month
           <input
@@ -146,6 +146,15 @@ export function StatementReportForm({ defaultMonth }: { defaultMonth: string }) 
             value={closingBalance}
             onChange={(event) => setClosingBalance(event.target.value)}
             placeholder="0"
+            className="h-11 rounded-lg border border-gray-200 bg-white px-3 text-gray-900 outline-none focus:border-brand-500 dark:border-white/15 dark:bg-white/10 dark:text-white"
+          />
+        </label>
+        <label className="grid gap-2 text-sm font-medium text-gray-800 dark:text-gray-100">
+          Manual interest
+          <input
+            name="manual_interest_amount"
+            inputMode="decimal"
+            placeholder="Optional"
             className="h-11 rounded-lg border border-gray-200 bg-white px-3 text-gray-900 outline-none focus:border-brand-500 dark:border-white/15 dark:bg-white/10 dark:text-white"
           />
         </label>

@@ -19,18 +19,18 @@ export default async function FinancialReportsPage() {
       metrics={[
         { label: "Reports Ready", value: String(reports.length), detail: "Generated from statements" },
         { label: "Draft Reports", value: String(drafts.length), detail: "Awaiting review" },
-        { label: "Open Exceptions", value: String(exceptions), detail: "Possible or unmatched rows" },
+        { label: "Open Exceptions", value: String(exceptions), detail: "Variance or matching review" },
         {
-          label: "Matched Deposits",
+          label: "Approved Deposits",
           value: money(sumBy(reports, (report) => report.approved_member_deposits)),
-          detail: "Statement-matched value",
+          detail: "Posted member value",
         },
       ]}
       sections={[
         {
           title: "Report Coverage",
-          body: "Reports combine bank statement credits, approved member submissions, unmatched deposits, balances, and finance notes.",
-          items: ["Monthly deposit report", "Statement matching", "Exception summary"],
+          body: "Reports combine SBG statement movement, approved member submissions, daily weighted interest allocation, variances, and finance notes.",
+          items: ["Monthly statement report", "Daily weighted allocation", "Exception summary"],
         },
         {
           title: "Review Process",
@@ -44,12 +44,12 @@ export default async function FinancialReportsPage() {
         },
       ]}
       table={{
-        columns: ["Period", "Deposits", "Matched", "Unmatched", "Exceptions", "Status"],
+        columns: ["Period", "Statement Movement", "Approved Deposits", "Interest / Variance", "Exceptions", "Status"],
         rows: reports.map((report) => [
           report.reporting_month,
           money(report.total_deposits),
           money(report.approved_member_deposits),
-          money(report.unmatched_deposits),
+          money(report.calculated_interest_amount ?? report.unmatched_deposits),
           String(report.exception_count ?? 0),
           report.status ?? "draft",
         ]),
