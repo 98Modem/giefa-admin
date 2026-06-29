@@ -101,9 +101,10 @@ export default async function StatementReportsPage() {
               Upload statement and generate draft
             </h2>
             <p className="text-sm leading-6 text-gray-600 dark:text-gray-200">
-              SBG valuation PDFs are stored as the official file. Paste copied
-              PDF text or OCR output and GIEFA extracts opening balance, closing
-              balance, periodic return, YTD return, and investments.
+              Upload the SBG valuation PDF and GIEFA extracts opening balance,
+              closing balance, periodic return, YTD return, and investments.
+              Use the text box only when finance needs to add rows or correct
+              a difficult file.
             </p>
           </div>
 
@@ -149,7 +150,7 @@ export default async function StatementReportsPage() {
           </label>
 
           <label className="mt-4 grid gap-2 text-sm font-medium text-gray-800 dark:text-gray-100">
-            Statement rows or copied PDF text
+            Optional statement rows or correction text
             <textarea
               name="statement_rows"
               rows={8}

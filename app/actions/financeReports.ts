@@ -57,6 +57,24 @@ function isUploadableStatement(file: FormDataEntryValue | null): file is File {
   return file instanceof File && file.size > 0;
 }
 
+function isPdfStatement(file: File) {
+  return file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+}
+
+async function extractPdfText(file: File) {
+  const { PDFParse } = await import("pdf-parse");
+  const parser = new PDFParse({
+    data: Buffer.from(await file.arrayBuffer()),
+  });
+
+  try {
+    const result = await parser.getText();
+    return result.text.trim();
+  } finally {
+    await parser.destroy();
+  }
+}
+
 function normalizeReference(value: string | null | undefined) {
   return (value ?? "").replace(/[^a-z0-9]/gi, "").toLowerCase();
 }
@@ -110,36 +128,79 @@ function firstNumberAfter(text: string, label: RegExp) {
   return parseSignedMoney(match?.[1]);
 }
 
+function parseStandaloneAmountLine(value: string | undefined) {
+  if (!value || !/^\(?[\d,]+(?:\.\d+)?\)?$/.test(value.trim())) return null;
+  return parseSignedMoney(value);
+}
+
+function parsePdfPortfolioValues(text: string) {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const targetIndex = lines.findIndex((line) =>
+    /TARGET RETURN ON INVESTMENT/i.test(line)
+  );
+  const lessIndex = lines.findIndex((line) => /^5\.\s+LESS:/i.test(line));
+
+  if (targetIndex === -1 || lessIndex === -1 || lessIndex <= targetIndex) {
+    return null;
+  }
+
+  const values = lines
+    .slice(targetIndex + 1, lessIndex)
+    .map(parseStandaloneAmountLine)
+    .filter((value): value is number => value !== null);
+
+  if (values.length < 11) return null;
+
+  return {
+    net_asset_value: values[0],
+    opening_balance: values[1],
+    additional_investments: values[2],
+    periodic_return: values[5],
+    actual_after_tax_return: values[9],
+    closing_balance: values[10],
+  };
+}
+
 function parseValuationSummary(text: string): ValuationSummary {
   const normalized = text.replace(/\s+/g, " ");
   const periodMatch = normalized.match(
     /Valuation Period\s+(\d{1,2}\/\d{1,2}\/\d{4})\s+To\s+(\d{1,2}\/\d{1,2}\/\d{4})/i
   );
+  const pdfPeriodStartMatch = normalized.match(
+    /Valuation Period\s+(\d{1,2}\/\d{1,2}\/\d{4})/i
+  );
+  const pdfPeriodEndMatch = normalized.match(
+    /Customer Name[\s\S]*?\s(\d{1,2}\/\d{1,2}\/\d{4})\s+Branch/i
+  );
   const statementDateMatch = normalized.match(
     /Statement Of Account As At\s+([A-Za-z]+\s+\d{1,2},\s+\d{4})/i
   );
+  const pdfValues = parsePdfPortfolioValues(text);
 
   return {
     statement_date: parseLongDate(statementDateMatch?.[1]),
-    period_start: parseDate(periodMatch?.[1]),
-    period_end: parseDate(periodMatch?.[2]),
-    net_asset_value: firstNumberAfter(
+    period_start: parseDate(periodMatch?.[1] ?? pdfPeriodStartMatch?.[1]),
+    period_end: parseDate(periodMatch?.[2] ?? pdfPeriodEndMatch?.[1]),
+    net_asset_value: pdfValues?.net_asset_value ?? firstNumberAfter(
       normalized,
       /NET ASSET VALUE OF PORTFOLIO \(NAV\)\s+([\d,]+(?:\.\d+)?)/i
     ),
-    opening_balance: firstNumberAfter(
+    opening_balance: pdfValues?.opening_balance ?? firstNumberAfter(
       normalized,
       /OPENING BALANCE\s+([\d,]+(?:\.\d+)?)/i
     ),
-    additional_investments: firstNumberAfter(
+    additional_investments: pdfValues?.additional_investments ?? firstNumberAfter(
       normalized,
       /ADDITIONAL INVESTMENTS\/\(WITHDRAWALS\) \(NET\):\s+(\(?[\d,]+(?:\.\d+)?\)?)/i
     ),
-    periodic_return: firstNumberAfter(
+    periodic_return: pdfValues?.periodic_return ?? firstNumberAfter(
       normalized,
       /PERIODIC RETURN ON INVESTMENT\s+([\d,]+(?:\.\d+)?)/i
     ),
-    actual_after_tax_return: firstNumberAfter(
+    actual_after_tax_return: pdfValues?.actual_after_tax_return ?? firstNumberAfter(
       normalized,
       /ACTUAL AFTER TAX RETURN ON INVESTMENT \(AATR\)\s+([\d,]+(?:\.\d+)?)/i
     ),
@@ -147,7 +208,7 @@ function parseValuationSummary(text: string): ValuationSummary {
       normalized,
       /YTD RETURN \(%\)\s+([\d,]+(?:\.\d+)?)/i
     ),
-    closing_balance: firstNumberAfter(
+    closing_balance: pdfValues?.closing_balance ?? firstNumberAfter(
       normalized,
       /CLOSING BALANCE\s+([\d,]+(?:\.\d+)?)/i
     ),
@@ -306,7 +367,10 @@ export async function createMonthlyFinanceReport(formData: FormData) {
       });
     assertOk(uploadError, "Upload bank statement");
 
-    if (/text|csv|plain|tab-separated/i.test(statementFile.type) || /\.(csv|txt|tsv)$/i.test(statementFile.name)) {
+    if (isPdfStatement(statementFile)) {
+      const pdfText = await extractPdfText(statementFile);
+      statementText = `${statementText}\n${pdfText}`.trim();
+    } else if (/text|csv|plain|tab-separated/i.test(statementFile.type) || /\.(csv|txt|tsv)$/i.test(statementFile.name)) {
       statementText = `${statementText}\n${await statementFile.text()}`.trim();
     }
   }
