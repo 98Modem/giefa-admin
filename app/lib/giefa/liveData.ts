@@ -93,6 +93,51 @@ export type DepositSubmissionRecord = {
   created_at: string | null;
 };
 
+export type BankStatementImportRecord = {
+  id: string;
+  reporting_month: string;
+  statement_file_url: string | null;
+  original_file_name: string | null;
+  opening_balance: number | null;
+  closing_balance: number | null;
+  notes: string | null;
+  status: string | null;
+  uploaded_by: string | null;
+  created_at: string | null;
+};
+
+export type BankStatementTransactionRecord = {
+  id: string;
+  statement_import_id: string;
+  transaction_date: string | null;
+  description: string | null;
+  reference: string | null;
+  debit: number | null;
+  credit: number | null;
+  running_balance: number | null;
+  matched_submission_id: string | null;
+  match_status: string | null;
+  created_at: string | null;
+};
+
+export type FinanceMonthlyReportRecord = {
+  id: string;
+  reporting_month: string;
+  statement_import_id: string | null;
+  opening_balance: number | null;
+  closing_balance: number | null;
+  total_deposits: number | null;
+  approved_member_deposits: number | null;
+  unmatched_deposits: number | null;
+  member_count: number | null;
+  exception_count: number | null;
+  notes: string | null;
+  status: string | null;
+  prepared_by: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
 export type MemberLookup = Record<string, MemberRecord>;
 
 export function money(value: number | null | undefined) {
@@ -240,6 +285,47 @@ export async function getDepositSubmissions(status?: DepositSubmissionStatus) {
 
   const { data } = await query;
   return (data ?? []) as DepositSubmissionRecord[];
+}
+
+export async function getBankStatementImports() {
+  const supabase = await supabaseServer();
+  const { data } = await supabase
+    .from("bank_statement_imports")
+    .select(
+      "id, reporting_month, statement_file_url, original_file_name, opening_balance, closing_balance, notes, status, uploaded_by, created_at"
+    )
+    .order("created_at", { ascending: false });
+
+  return (data ?? []) as BankStatementImportRecord[];
+}
+
+export async function getBankStatementTransactions(importId?: string) {
+  const supabase = await supabaseServer();
+  let query = supabase
+    .from("bank_statement_transactions")
+    .select(
+      "id, statement_import_id, transaction_date, description, reference, debit, credit, running_balance, matched_submission_id, match_status, created_at"
+    )
+    .order("transaction_date", { ascending: false });
+
+  if (importId) {
+    query = query.eq("statement_import_id", importId);
+  }
+
+  const { data } = await query;
+  return (data ?? []) as BankStatementTransactionRecord[];
+}
+
+export async function getFinanceMonthlyReports() {
+  const supabase = await supabaseServer();
+  const { data } = await supabase
+    .from("finance_monthly_reports")
+    .select(
+      "id, reporting_month, statement_import_id, opening_balance, closing_balance, total_deposits, approved_member_deposits, unmatched_deposits, member_count, exception_count, notes, status, prepared_by, created_at, updated_at"
+    )
+    .order("reporting_month", { ascending: false });
+
+  return (data ?? []) as FinanceMonthlyReportRecord[];
 }
 
 export function sumBy<T>(

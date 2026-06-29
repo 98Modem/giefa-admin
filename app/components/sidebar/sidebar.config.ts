@@ -144,6 +144,10 @@ export const SIDEBAR_MENU: SidebarItem[] = [
         href: "/finance/interest-growth",
       },
       {
+        title: "Statement Reports",
+        href: "/finance/statement-reports",
+      },
+      {
         title: "Financial Reports",
         href: "/finance/reports",
       },
