@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowRightOnRectangleIcon,
@@ -57,6 +57,7 @@ export function Header() {
   const notificationCloseTimerRef = useRef<number | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const notificationRef = useRef<HTMLDivElement | null>(null);
+  const lastNotificationRefreshRef = useRef(0);
 
   const cancelClose = () => {
     if (closeTimerRef.current !== null) {
@@ -137,41 +138,45 @@ export function Header() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!member?.id) return;
+  const loadNotifications = useCallback(async (memberId: string) => {
+    lastNotificationRefreshRef.current = Date.now();
 
-    let mounted = true;
+    const { data, error } = await supabaseBrowser
+      .from("notifications")
+      .select("id, title, message, type, link_url, read, created_at")
+      .eq("member_id", memberId)
+      .eq("read", false)
+      .order("created_at", { ascending: false })
+      .limit(12);
 
-    const loadNotifications = async () => {
-      const { data, error } = await supabaseBrowser
+    if (error) {
+      const { data: fallback } = await supabaseBrowser
         .from("notifications")
-        .select("id, title, message, type, link_url, read, created_at")
-        .eq("member_id", member.id)
+        .select("id, message, read, created_at")
+        .eq("member_id", memberId)
         .eq("read", false)
         .order("created_at", { ascending: false })
         .limit(12);
 
-      if (!mounted) return;
+      setNotifications((fallback ?? []) as HeaderNotification[]);
+      return;
+    }
 
-      if (error) {
-        const { data: fallback } = await supabaseBrowser
-          .from("notifications")
-          .select("id, message, read, created_at")
-          .eq("member_id", member.id)
-          .eq("read", false)
-          .order("created_at", { ascending: false })
-          .limit(12);
+    setNotifications((data ?? []) as HeaderNotification[]);
+  }, []);
 
-        if (mounted) {
-          setNotifications((fallback ?? []) as HeaderNotification[]);
-        }
-        return;
-      }
+  useEffect(() => {
+    if (!member?.id) return;
 
-      setNotifications((data ?? []) as HeaderNotification[]);
+    let mounted = true;
+    let realtimeReady = false;
+
+    const refreshIfMounted = async () => {
+      if (!mounted || !member.id) return;
+      await loadNotifications(member.id);
     };
 
-    void loadNotifications();
+    void refreshIfMounted();
 
     const channel = supabaseBrowser
       .channel(`notifications:${member.id}`)
@@ -184,19 +189,76 @@ export function Header() {
           filter: `member_id=eq.${member.id}`,
         },
         (payload) => {
-          setNotifications((current) => [
-            payload.new as HeaderNotification,
-            ...current,
-          ].slice(0, 12));
+          const incoming = payload.new as HeaderNotification;
+
+          setNotifications((current) => {
+            if (incoming.read) {
+              return current.filter((notification) => notification.id !== incoming.id);
+            }
+
+            return [
+              incoming,
+              ...current.filter((notification) => notification.id !== incoming.id),
+            ].slice(0, 12);
+          });
         }
       )
-      .subscribe();
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "notifications",
+          filter: `member_id=eq.${member.id}`,
+        },
+        (payload) => {
+          const changed = payload.new as HeaderNotification;
+
+          setNotifications((current) => {
+            if (changed.read) {
+              return current.filter((notification) => notification.id !== changed.id);
+            }
+
+            return current.map((notification) =>
+              notification.id === changed.id ? changed : notification
+            );
+          });
+        }
+      )
+      .subscribe((status) => {
+        realtimeReady = status === "SUBSCRIBED";
+
+        if (status === "SUBSCRIBED") {
+          void refreshIfMounted();
+        }
+      });
+
+    const fallbackInterval = window.setInterval(() => {
+      if (!mounted) return;
+
+      const intervalMs = realtimeReady ? 30000 : 5000;
+      if (Date.now() - lastNotificationRefreshRef.current >= intervalMs) {
+        void refreshIfMounted();
+      }
+    }, 5000);
+
+    const refreshOnFocus = () => {
+      if (document.visibilityState === "visible") {
+        void refreshIfMounted();
+      }
+    };
+
+    window.addEventListener("focus", refreshOnFocus);
+    document.addEventListener("visibilitychange", refreshOnFocus);
 
     return () => {
       mounted = false;
+      window.clearInterval(fallbackInterval);
+      window.removeEventListener("focus", refreshOnFocus);
+      document.removeEventListener("visibilitychange", refreshOnFocus);
       supabaseBrowser.removeChannel(channel);
     };
-  }, [member?.id]);
+  }, [loadNotifications, member?.id]);
 
   useEffect(() => {
     if (!open) return;
