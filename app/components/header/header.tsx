@@ -54,6 +54,7 @@ export function Header() {
   const [themeMode, setThemeMode] = useState<ThemeMode>("system");
   const [colorTheme, setColorTheme] = useState<ColorTheme>("blue");
   const closeTimerRef = useRef<number | null>(null);
+  const notificationCloseTimerRef = useRef<number | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const notificationRef = useRef<HTMLDivElement | null>(null);
 
@@ -74,6 +75,26 @@ export function Header() {
     closeTimerRef.current = window.setTimeout(() => {
       setOpen(false);
       closeTimerRef.current = null;
+    }, 180);
+  };
+
+  const cancelNotificationClose = () => {
+    if (notificationCloseTimerRef.current !== null) {
+      window.clearTimeout(notificationCloseTimerRef.current);
+      notificationCloseTimerRef.current = null;
+    }
+  };
+
+  const openNotifications = () => {
+    cancelNotificationClose();
+    setNotificationsOpen(true);
+  };
+
+  const scheduleNotificationClose = () => {
+    cancelNotificationClose();
+    notificationCloseTimerRef.current = window.setTimeout(() => {
+      setNotificationsOpen(false);
+      notificationCloseTimerRef.current = null;
     }, 180);
   };
 
@@ -126,6 +147,7 @@ export function Header() {
         .from("notifications")
         .select("id, title, message, type, link_url, read, created_at")
         .eq("member_id", member.id)
+        .eq("read", false)
         .order("created_at", { ascending: false })
         .limit(12);
 
@@ -136,6 +158,7 @@ export function Header() {
           .from("notifications")
           .select("id, message, read, created_at")
           .eq("member_id", member.id)
+          .eq("read", false)
           .order("created_at", { ascending: false })
           .limit(12);
 
@@ -224,7 +247,10 @@ export function Header() {
   }, [notificationsOpen]);
 
   useEffect(() => {
-    return () => cancelClose();
+    return () => {
+      cancelClose();
+      cancelNotificationClose();
+    };
   }, []);
 
   const savePreferences = async (
@@ -256,22 +282,44 @@ export function Header() {
     router.replace("/login");
   };
 
+  const getNotificationHref = (notification: HeaderNotification) => {
+    if (notification.link_url) return notification.link_url;
+
+    const normalizedType = (notification.type ?? "").toLowerCase();
+    const normalizedMessage = (notification.message ?? "").toLowerCase();
+
+    if (normalizedType.includes("finance_report") || normalizedMessage.includes("report edit")) {
+      return role === "chairman" || role === "admin"
+        ? "/chairman/finance-reports"
+        : "/finance/statement-reports";
+    }
+
+    if (normalizedType.includes("deposit") || normalizedMessage.includes("deposit proof")) {
+      return role === "treasurer" || role === "admin" || role === "chairman"
+        ? "/finance/deposit-submissions"
+        : "/funds/deposit-proof";
+    }
+
+    if (normalizedMessage.includes("emergency")) return "/funds/my-requests";
+    if (normalizedMessage.includes("pending approval")) return "/pending-approval";
+
+    return "/dashboard";
+  };
+
   const openNotification = async (notification: HeaderNotification) => {
     setNotificationsOpen(false);
+    setNotifications((current) =>
+      current.filter((item) => item.id !== notification.id)
+    );
 
     if (!notification.read) {
-      setNotifications((current) =>
-        current.map((item) =>
-          item.id === notification.id ? { ...item, read: true } : item
-        )
-      );
       await supabaseBrowser
         .from("notifications")
         .update({ read: true })
         .eq("id", notification.id);
     }
 
-    router.push(notification.link_url || "/dashboard");
+    router.push(getNotificationHref(notification));
   };
 
   const displayName =
@@ -291,10 +339,24 @@ export function Header() {
         </h1>
 
         <div className="flex items-center gap-3">
-          <div ref={notificationRef} className="relative">
+          <div
+            ref={notificationRef}
+            className="relative"
+            onMouseEnter={openNotifications}
+            onMouseLeave={scheduleNotificationClose}
+            onFocus={openNotifications}
+            onBlur={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget)) {
+                scheduleNotificationClose();
+              }
+            }}
+          >
             <button
               type="button"
-              onClick={() => setNotificationsOpen((current) => !current)}
+              onClick={() => {
+                cancelNotificationClose();
+                setNotificationsOpen((current) => !current);
+              }}
               className="relative flex h-11 w-11 items-center justify-center rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] text-gray-700 shadow-sm transition hover:bg-brand-50 dark:text-gray-100 dark:hover:bg-white/10"
               aria-label="Open notifications"
               aria-expanded={notificationsOpen}
