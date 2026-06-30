@@ -36,6 +36,9 @@ export function ReportEditDialog({
   useEffect(() => {
     if (!open) return;
 
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
     function closeOnEscape(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setOpen(false);
@@ -43,7 +46,10 @@ export function ReportEditDialog({
     }
 
     window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
   }, [open]);
 
   return (
@@ -57,14 +63,22 @@ export function ReportEditDialog({
       </button>
 
       {open && (
-        <div className="pointer-events-none fixed inset-0 z-[120]">
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-gray-950/50 px-3 py-4 backdrop-blur-md sm:px-6"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setOpen(false);
+            }
+          }}
+        >
           <section
             role="dialog"
-            aria-modal="false"
+            aria-modal="true"
             aria-label={`Edit ${reportingMonth} statement report`}
-            className="pointer-events-auto fixed inset-0 flex flex-col overflow-hidden border-gray-200 bg-white shadow-2xl dark:border-white/15 dark:bg-gray-950 sm:inset-y-4 sm:left-auto sm:right-4 sm:w-[min(500px,calc(100vw-2rem))] sm:rounded-2xl sm:border"
+            onMouseDown={(event) => event.stopPropagation()}
+            className="flex max-h-[92dvh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-white/15 dark:bg-gray-950"
           >
-            <div className="sticky top-0 z-10 border-b border-gray-200 bg-white/95 px-5 py-4 backdrop-blur dark:border-white/10 dark:bg-gray-950/95">
+            <div className="border-b border-gray-200 bg-white/95 px-5 py-4 backdrop-blur dark:border-white/10 dark:bg-gray-950/95 sm:px-6">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-300">
@@ -87,7 +101,7 @@ export function ReportEditDialog({
                 </button>
               </div>
 
-              <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
+              <div className="mt-4 grid gap-3 text-xs sm:grid-cols-2">
                 <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-white/10 dark:bg-white/5">
                   <p className="text-gray-500 dark:text-gray-300">Statement</p>
                   <p className="mt-1 font-semibold text-gray-900 dark:text-white">
@@ -110,13 +124,13 @@ export function ReportEditDialog({
                   setOpen(false);
                 });
               }}
-              className="flex min-h-0 flex-1 flex-col"
+              className="flex min-h-0 flex-1 flex-col overflow-hidden"
             >
-              <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 sm:px-6">
                 <input type="hidden" name="request_id" value={requestId} />
                 <input type="hidden" name="report_id" value={reportId} />
 
-                <div className="grid gap-4">
+                <div className="grid gap-4 lg:grid-cols-2">
                   <label className="grid gap-2 text-sm font-medium text-gray-800 dark:text-gray-100">
                     Reporting month
                     <input
@@ -126,26 +140,25 @@ export function ReportEditDialog({
                     />
                   </label>
 
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <label className="grid gap-2 text-sm font-medium text-gray-800 dark:text-gray-100">
-                      Opening balance
-                      <input
-                        name="opening_balance"
-                        inputMode="decimal"
-                        defaultValue={fieldValue(openingBalance)}
-                        className="h-12 rounded-lg border border-gray-200 bg-white px-3 text-gray-900 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100 dark:border-white/15 dark:bg-white/10 dark:text-white dark:focus:ring-brand-400/20"
-                      />
-                    </label>
-                    <label className="grid gap-2 text-sm font-medium text-gray-800 dark:text-gray-100">
-                      Closing balance
-                      <input
-                        name="closing_balance"
-                        inputMode="decimal"
-                        defaultValue={fieldValue(closingBalance)}
-                        className="h-12 rounded-lg border border-gray-200 bg-white px-3 text-gray-900 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100 dark:border-white/15 dark:bg-white/10 dark:text-white dark:focus:ring-brand-400/20"
-                      />
-                    </label>
-                  </div>
+                  <label className="grid gap-2 text-sm font-medium text-gray-800 dark:text-gray-100">
+                    Opening balance
+                    <input
+                      name="opening_balance"
+                      inputMode="decimal"
+                      defaultValue={fieldValue(openingBalance)}
+                      className="h-12 rounded-lg border border-gray-200 bg-white px-3 text-gray-900 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100 dark:border-white/15 dark:bg-white/10 dark:text-white dark:focus:ring-brand-400/20"
+                    />
+                  </label>
+
+                  <label className="grid gap-2 text-sm font-medium text-gray-800 dark:text-gray-100">
+                    Closing balance
+                    <input
+                      name="closing_balance"
+                      inputMode="decimal"
+                      defaultValue={fieldValue(closingBalance)}
+                      className="h-12 rounded-lg border border-gray-200 bg-white px-3 text-gray-900 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100 dark:border-white/15 dark:bg-white/10 dark:text-white dark:focus:ring-brand-400/20"
+                    />
+                  </label>
 
                   <label className="grid gap-2 text-sm font-medium text-gray-800 dark:text-gray-100">
                     Statement movement
@@ -196,25 +209,25 @@ export function ReportEditDialog({
                       className="resize-y rounded-lg border border-gray-200 bg-white px-3 py-3 text-gray-900 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100 dark:border-white/15 dark:bg-white/10 dark:text-white dark:focus:ring-brand-400/20"
                     />
                   </label>
-                </div>
 
-                <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900 dark:border-amber-300/25 dark:bg-amber-400/10 dark:text-amber-100">
-                  Approved deposits are saved as an audited adjustment, then daily weighted interest allocations are recalculated.
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900 dark:border-amber-300/25 dark:bg-amber-400/10 dark:text-amber-100 lg:self-end">
+                    Approved deposits are saved as an audited adjustment, then daily weighted interest allocations are recalculated.
+                  </div>
                 </div>
               </div>
 
-              <div className="sticky bottom-0 border-t border-gray-200 bg-white/95 px-5 py-4 backdrop-blur dark:border-white/10 dark:bg-gray-950/95">
-                <div className="grid gap-3 sm:grid-cols-2">
+              <div className="border-t border-gray-200 bg-white/95 px-5 py-4 backdrop-blur dark:border-white/10 dark:bg-gray-950/95 sm:px-6">
+                <div className="grid gap-3 sm:ml-auto sm:w-fit sm:grid-cols-2">
                   <button
                     type="button"
                     onClick={() => setOpen(false)}
-                    className="min-h-12 rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-brand-300 dark:border-white/15 dark:text-gray-200 dark:hover:bg-white/10"
+                    className="min-h-12 rounded-lg border border-gray-200 px-6 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-brand-300 dark:border-white/15 dark:text-gray-200 dark:hover:bg-white/10"
                   >
                     Cancel
                   </button>
                   <button
                     disabled={isPending}
-                    className="min-h-12 rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-300 disabled:cursor-not-allowed disabled:opacity-70"
+                    className="min-h-12 rounded-lg bg-brand-500 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-300 disabled:cursor-not-allowed disabled:opacity-70"
                   >
                     {isPending ? "Applying..." : "Apply edit"}
                   </button>
