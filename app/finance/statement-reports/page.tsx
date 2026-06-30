@@ -155,6 +155,11 @@ export default async function StatementReportsPage() {
                 {reports.map((report) => {
                   const statementImport = imports.find((row) => row.id === report.statement_import_id);
                   const signedUrl = statementImport ? statementUrls.get(statementImport.id) : null;
+                  const hasOpenEditRequest = editRequests.some(
+                    (request) =>
+                      request.report_id === report.id &&
+                      ["requested", "approved"].includes(request.status ?? "")
+                  );
 
                   return (
                     <tr key={report.id}>
@@ -196,7 +201,9 @@ export default async function StatementReportsPage() {
                         {report.status ?? "draft"}
                       </td>
                       <td className="min-w-72 px-5 py-4">
-                        {canRequestEdit && !["edit_requested", "edit_approved"].includes(report.status ?? "") && (
+                        {canRequestEdit &&
+                          !hasOpenEditRequest &&
+                          !["edit_requested", "edit_approved"].includes(report.status ?? "") && (
                           <form action={requestFinanceReportEdit} className="grid gap-2">
                             <input type="hidden" name="report_id" value={report.id} />
                             <input

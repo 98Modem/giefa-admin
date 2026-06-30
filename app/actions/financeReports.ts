@@ -53,6 +53,13 @@ function assertOk(error: { message: string } | null, action: string) {
   }
 }
 
+function isSchemaCacheMiss(error: { message?: string; code?: string } | null) {
+  return (
+    error?.code === "PGRST202" ||
+    /schema cache|could not find the function/i.test(error?.message ?? "")
+  );
+}
+
 function isUploadableStatement(file: FormDataEntryValue | null): file is File {
   return file instanceof File && file.size > 0;
 }
@@ -506,7 +513,48 @@ export async function requestFinanceReportEdit(formData: FormData) {
     p_report_id: reportId,
     p_reason: reason || "Finance needs to correct report inputs.",
   });
-  assertOk(error, "Request finance report edit");
+
+  if (error && isSchemaCacheMiss(error)) {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session) {
+      throw new Error("Request finance report edit failed: sign in again.");
+    }
+
+    const { data: actor } = await supabase
+      .from("members")
+      .select("id, role, status")
+      .eq("auth_user_id", session.user.id)
+      .maybeSingle<{ id: string; role: string; status: string }>();
+
+    if (!actor || actor.status !== "approved" || !["treasurer", "admin"].includes(actor.role)) {
+      throw new Error("Request finance report edit failed: only treasurer or admin can request edits.");
+    }
+
+    const { error: insertError } = await supabase
+      .from("finance_report_edit_requests")
+      .insert({
+        report_id: reportId,
+        requested_by: actor.id,
+        reason: reason || "Finance needs to correct report inputs.",
+        status: "requested",
+      });
+
+    if (insertError) {
+      throw new Error(
+        `Request finance report edit failed: ${insertError.message}. Run supabase-daily-weighted-interest.sql in Supabase, then retry.`
+      );
+    }
+
+    await supabase
+      .from("finance_monthly_reports")
+      .update({ status: "edit_requested" })
+      .eq("id", reportId);
+  } else {
+    assertOk(error, "Request finance report edit");
+  }
 
   revalidatePath("/finance/statement-reports");
   revalidatePath("/finance/reports");
