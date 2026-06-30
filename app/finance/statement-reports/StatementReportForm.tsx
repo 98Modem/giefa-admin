@@ -115,7 +115,7 @@ export function StatementReportForm({ defaultMonth }: { defaultMonth: string }) 
         </p>
       </div>
 
-      <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mt-5 grid gap-4 sm:grid-cols-2">
         <label className="grid gap-2 text-sm font-medium text-gray-800 dark:text-gray-100">
           Reporting month
           <input

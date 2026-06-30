@@ -13,10 +13,10 @@ import {
 } from "@/app/lib/giefa/liveData";
 import { supabaseServer } from "@/app/lib/supabase/server";
 import {
-  applyFinanceReportEdit,
   approveFinanceReportEdit,
   requestFinanceReportEdit,
 } from "@/app/actions/financeReports";
+import { ReportEditDialog } from "./ReportEditDialog";
 import { StatementReportForm } from "./StatementReportForm";
 
 function currentMonth() {
@@ -254,29 +254,18 @@ export default async function StatementReportsPage() {
                           editRequests
                             .filter((request) => request.report_id === report.id && request.status === "approved")
                             .map((request) => (
-                              <form key={request.id} action={applyFinanceReportEdit} className="grid gap-2">
-                                <input type="hidden" name="request_id" value={request.id} />
-                                <input
-                                  name="manual_interest_amount"
-                                  inputMode="decimal"
-                                  placeholder="Manual interest amount"
-                                  className="h-9 rounded-md border border-gray-200 bg-white px-2 text-xs text-gray-900 dark:border-white/15 dark:bg-white/10 dark:text-white"
-                                />
-                                <input
-                                  name="manual_deposit_adjustment"
-                                  inputMode="decimal"
-                                  placeholder="Manual bank/member deposit adjustment"
-                                  className="h-9 rounded-md border border-gray-200 bg-white px-2 text-xs text-gray-900 dark:border-white/15 dark:bg-white/10 dark:text-white"
-                                />
-                                <input
-                                  name="notes"
-                                  placeholder="Edit note"
-                                  className="h-9 rounded-md border border-gray-200 bg-white px-2 text-xs text-gray-900 dark:border-white/15 dark:bg-white/10 dark:text-white"
-                                />
-                                <button className="rounded-md bg-brand-500 px-3 py-2 text-xs font-semibold text-white hover:bg-brand-600">
-                                  Apply approved edit
-                                </button>
-                              </form>
+                              <ReportEditDialog
+                                key={request.id}
+                                requestId={request.id}
+                                reportId={report.id}
+                                reportingMonth={report.reporting_month}
+                                openingBalance={report.opening_balance}
+                                closingBalance={report.closing_balance}
+                                statementMovement={report.total_deposits}
+                                approvedDeposits={report.approved_member_deposits}
+                                interestAmount={report.manual_interest_amount ?? report.calculated_interest_amount ?? report.unmatched_deposits}
+                                notes={report.notes}
+                              />
                             ))}
                       </td>
                     </tr>

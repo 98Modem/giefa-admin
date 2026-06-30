@@ -47,6 +47,10 @@ function getNumber(formData: FormData, key: string) {
   return Number.isFinite(value) ? value : 0;
 }
 
+function hasFormValue(formData: FormData, key: string) {
+  return getString(formData, key) !== "";
+}
+
 function assertOk(error: { message: string } | null, action: string) {
   if (error) {
     throw new Error(`${action} failed: ${error.message}`);
@@ -711,15 +715,58 @@ export async function approveFinanceReportEdit(formData: FormData) {
 export async function applyFinanceReportEdit(formData: FormData) {
   const supabase = await supabaseServer();
   const requestId = getString(formData, "request_id");
-  const manualInterestAmount = getNumber(formData, "manual_interest_amount");
-  const manualDepositAdjustment = getNumber(formData, "manual_deposit_adjustment");
+  const reportId = getString(formData, "report_id");
+  const manualInterestAmount = hasFormValue(formData, "manual_interest_amount")
+    ? getNumber(formData, "manual_interest_amount")
+    : null;
+  let manualDepositAdjustment = hasFormValue(formData, "manual_deposit_adjustment")
+    ? getNumber(formData, "manual_deposit_adjustment")
+    : 0;
   const notes = getString(formData, "notes");
 
   if (!requestId) return;
 
+  if (reportId) {
+    const { data: currentReport, error: currentReportError } = await supabase
+      .from("finance_monthly_reports")
+      .select("approved_member_deposits")
+      .eq("id", reportId)
+      .single();
+
+    assertOk(currentReportError, "Load finance report for edit");
+
+    if (hasFormValue(formData, "approved_member_deposits")) {
+      manualDepositAdjustment =
+        getNumber(formData, "approved_member_deposits") - Number(currentReport?.approved_member_deposits ?? 0);
+    }
+
+    const reportUpdates: Record<string, number | string> = {};
+
+    if (hasFormValue(formData, "opening_balance")) {
+      reportUpdates.opening_balance = getNumber(formData, "opening_balance");
+    }
+
+    if (hasFormValue(formData, "closing_balance")) {
+      reportUpdates.closing_balance = getNumber(formData, "closing_balance");
+    }
+
+    if (hasFormValue(formData, "statement_movement")) {
+      reportUpdates.total_deposits = getNumber(formData, "statement_movement");
+    }
+
+    if (Object.keys(reportUpdates).length > 0) {
+      const { error: updateError } = await supabase
+        .from("finance_monthly_reports")
+        .update(reportUpdates)
+        .eq("id", reportId);
+
+      assertOk(updateError, "Update finance report values");
+    }
+  }
+
   const { error } = await supabase.rpc("apply_finance_report_edit_v1", {
     p_request_id: requestId,
-    p_manual_interest_amount: manualInterestAmount > 0 ? manualInterestAmount : null,
+    p_manual_interest_amount: manualInterestAmount !== null ? manualInterestAmount : null,
     p_manual_member_deposit_adjustment: manualDepositAdjustment,
     p_notes: notes || null,
   });
