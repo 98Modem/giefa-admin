@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowRightOnRectangleIcon,
+  BellIcon,
   ChevronDownIcon,
   Cog6ToothIcon,
   MoonIcon,
@@ -23,6 +24,7 @@ import {
 import { saveLocalPreferences } from "@/app/components/theme/ThemeProvider";
 
 type HeaderMember = {
+  id: string;
   first_name: string | null;
   last_name: string | null;
   role: string | null;
@@ -33,14 +35,27 @@ type HeaderMember = {
   color_theme: ColorTheme | null;
 };
 
+type HeaderNotification = {
+  id: string;
+  title?: string | null;
+  message: string | null;
+  type?: string | null;
+  link_url?: string | null;
+  read: boolean | null;
+  created_at: string | null;
+};
+
 export function Header() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [member, setMember] = useState<HeaderMember | null>(null);
+  const [notifications, setNotifications] = useState<HeaderNotification[]>([]);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [themeMode, setThemeMode] = useState<ThemeMode>("system");
   const [colorTheme, setColorTheme] = useState<ColorTheme>("blue");
   const closeTimerRef = useRef<number | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const notificationRef = useRef<HTMLDivElement | null>(null);
 
   const cancelClose = () => {
     if (closeTimerRef.current !== null) {
@@ -72,7 +87,7 @@ export function Header() {
 
       const { data } = await supabaseBrowser
         .from("members")
-        .select("first_name, last_name, role, avatar_url, avatar_position_x, avatar_position_y, theme_mode, color_theme")
+        .select("id, first_name, last_name, role, avatar_url, avatar_position_x, avatar_position_y, theme_mode, color_theme")
         .eq("auth_user_id", user.id)
         .maybeSingle<HeaderMember>();
 
@@ -102,6 +117,65 @@ export function Header() {
   }, []);
 
   useEffect(() => {
+    if (!member?.id) return;
+
+    let mounted = true;
+
+    const loadNotifications = async () => {
+      const { data, error } = await supabaseBrowser
+        .from("notifications")
+        .select("id, title, message, type, link_url, read, created_at")
+        .eq("member_id", member.id)
+        .order("created_at", { ascending: false })
+        .limit(12);
+
+      if (!mounted) return;
+
+      if (error) {
+        const { data: fallback } = await supabaseBrowser
+          .from("notifications")
+          .select("id, message, read, created_at")
+          .eq("member_id", member.id)
+          .order("created_at", { ascending: false })
+          .limit(12);
+
+        if (mounted) {
+          setNotifications((fallback ?? []) as HeaderNotification[]);
+        }
+        return;
+      }
+
+      setNotifications((data ?? []) as HeaderNotification[]);
+    };
+
+    void loadNotifications();
+
+    const channel = supabaseBrowser
+      .channel(`notifications:${member.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "notifications",
+          filter: `member_id=eq.${member.id}`,
+        },
+        (payload) => {
+          setNotifications((current) => [
+            payload.new as HeaderNotification,
+            ...current,
+          ].slice(0, 12));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      mounted = false;
+      supabaseBrowser.removeChannel(channel);
+    };
+  }, [member?.id]);
+
+  useEffect(() => {
     if (!open) return;
 
     const handlePointerDown = (event: PointerEvent) => {
@@ -124,6 +198,30 @@ export function Header() {
       window.removeEventListener("keydown", handleEscape);
     };
   }, [open]);
+
+  useEffect(() => {
+    if (!notificationsOpen) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!notificationRef.current?.contains(event.target as Node)) {
+        setNotificationsOpen(false);
+      }
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setNotificationsOpen(false);
+      }
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("keydown", handleEscape);
+
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [notificationsOpen]);
 
   useEffect(() => {
     return () => cancelClose();
@@ -158,10 +256,29 @@ export function Header() {
     router.replace("/login");
   };
 
+  const openNotification = async (notification: HeaderNotification) => {
+    setNotificationsOpen(false);
+
+    if (!notification.read) {
+      setNotifications((current) =>
+        current.map((item) =>
+          item.id === notification.id ? { ...item, read: true } : item
+        )
+      );
+      await supabaseBrowser
+        .from("notifications")
+        .update({ read: true })
+        .eq("id", notification.id);
+    }
+
+    router.push(notification.link_url || "/dashboard");
+  };
+
   const displayName =
     [member?.first_name, member?.last_name].filter(Boolean).join(" ") ||
     "GIEFA user";
   const role = member?.role?.replace("_", " ") ?? "member";
+  const unreadCount = notifications.filter((notification) => !notification.read).length;
   const avatarPosition = `${member?.avatar_position_x ?? 50}% ${
     member?.avatar_position_y ?? 50
   }%`;
@@ -173,7 +290,65 @@ export function Header() {
           GIEFA Dashboard
         </h1>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          <div ref={notificationRef} className="relative">
+            <button
+              type="button"
+              onClick={() => setNotificationsOpen((current) => !current)}
+              className="relative flex h-11 w-11 items-center justify-center rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] text-gray-700 shadow-sm transition hover:bg-brand-50 dark:text-gray-100 dark:hover:bg-white/10"
+              aria-label="Open notifications"
+              aria-expanded={notificationsOpen}
+            >
+              <BellIcon className="h-5 w-5" aria-hidden="true" />
+              {unreadCount > 0 && (
+                <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold text-white">
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              )}
+            </button>
+
+            {notificationsOpen && (
+              <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] origin-top-right rounded-lg border border-[var(--app-border)] bg-[var(--app-surface-strong)] p-2 shadow-xl ring-1 ring-black/5 dark:ring-white/10">
+                <div className="flex items-center justify-between border-b border-gray-100 px-2 py-2 dark:border-gray-800">
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                    Notifications
+                  </p>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    {unreadCount} unread
+                  </span>
+                </div>
+                <div className="max-h-96 overflow-y-auto py-1">
+                  {notifications.length === 0 ? (
+                    <p className="px-3 py-6 text-center text-sm text-gray-500 dark:text-gray-300">
+                      No notifications yet.
+                    </p>
+                  ) : (
+                    notifications.map((notification) => (
+                      <button
+                        key={notification.id}
+                        type="button"
+                        onClick={() => openNotification(notification)}
+                        className="grid w-full gap-1 rounded-lg px-3 py-3 text-left transition hover:bg-gray-50 dark:hover:bg-white/10"
+                      >
+                        <span className="flex items-center gap-2">
+                          {!notification.read && (
+                            <span className="h-2 w-2 shrink-0 rounded-full bg-brand-500" />
+                          )}
+                          <span className="truncate text-sm font-semibold text-gray-900 dark:text-white">
+                            {notification.title || "GIEFA update"}
+                          </span>
+                        </span>
+                        <span className="line-clamp-2 text-xs leading-5 text-gray-600 dark:text-gray-300">
+                          {notification.message || "Open this notification."}
+                        </span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
           <div
             ref={menuRef}
             className="relative"

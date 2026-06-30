@@ -7,6 +7,9 @@ type NotificationPayload = {
   id?: string;
   title?: string;
   message?: string;
+  link_url?: string;
+  type?: string;
+  read?: boolean;
   created_at?: string;
   [key: string]: unknown;
 };

@@ -60,6 +60,65 @@ function isSchemaCacheMiss(error: { message?: string; code?: string } | null) {
   );
 }
 
+async function notifyMembers(
+  supabase: Awaited<ReturnType<typeof supabaseServer>>,
+  memberIds: string[],
+  notification: {
+    title: string;
+    message: string;
+    type: string;
+    link_url: string;
+  }
+) {
+  const uniqueMemberIds = [...new Set(memberIds.filter(Boolean))];
+
+  if (uniqueMemberIds.length === 0) return;
+
+  const rows = uniqueMemberIds.map((memberId) => ({
+    member_id: memberId,
+    title: notification.title,
+    message: notification.message,
+    type: notification.type,
+    link_url: notification.link_url,
+    read: false,
+  }));
+
+  const { error } = await supabase.from("notifications").insert(rows);
+
+  if (!error) return;
+
+  await supabase.from("notifications").insert(
+    rows.map(({ member_id, message, read }) => ({
+      member_id,
+      message,
+      read,
+    }))
+  );
+}
+
+async function notifyRoles(
+  supabase: Awaited<ReturnType<typeof supabaseServer>>,
+  roles: string[],
+  notification: {
+    title: string;
+    message: string;
+    type: string;
+    link_url: string;
+  }
+) {
+  const { data: members } = await supabase
+    .from("members")
+    .select("id")
+    .eq("status", "approved")
+    .in("role", roles);
+
+  await notifyMembers(
+    supabase,
+    (members ?? []).map((member) => member.id),
+    notification
+  );
+}
+
 function isUploadableStatement(file: FormDataEntryValue | null): file is File {
   return file instanceof File && file.size > 0;
 }
@@ -556,6 +615,13 @@ export async function requestFinanceReportEdit(formData: FormData) {
     assertOk(error, "Request finance report edit");
   }
 
+  await notifyRoles(supabase, ["chairman", "admin"], {
+    title: "Finance report edit requested",
+    message: reason || "Finance requested permission to edit a monthly report.",
+    type: "finance_report_edit_request",
+    link_url: "/chairman/finance-reports",
+  });
+
   revalidatePath("/finance/statement-reports");
   revalidatePath("/finance/reports");
   revalidatePath("/chairman/finance-reports");
@@ -569,12 +635,73 @@ export async function approveFinanceReportEdit(formData: FormData) {
 
   if (!requestId) return;
 
+  const { data: editRequest } = await supabase
+    .from("finance_report_edit_requests")
+    .select("id, report_id, requested_by, reason")
+    .eq("id", requestId)
+    .maybeSingle<{
+      id: string;
+      report_id: string;
+      requested_by: string | null;
+      reason: string | null;
+    }>();
+
   const { error } = await supabase.rpc("approve_finance_report_edit_v1", {
     p_request_id: requestId,
     p_approved: approved,
     p_note: note || null,
   });
-  assertOk(error, "Approve finance report edit");
+
+  if (error && isSchemaCacheMiss(error)) {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session) {
+      throw new Error("Approve finance report edit failed: sign in again.");
+    }
+
+    const { data: actor } = await supabase
+      .from("members")
+      .select("id, role, status")
+      .eq("auth_user_id", session.user.id)
+      .maybeSingle<{ id: string; role: string; status: string }>();
+
+    if (!actor || actor.status !== "approved" || !["chairman", "admin"].includes(actor.role)) {
+      throw new Error("Approve finance report edit failed: only chairman or admin can decide edits.");
+    }
+
+    const { error: updateError } = await supabase
+      .from("finance_report_edit_requests")
+      .update({
+        status: approved ? "approved" : "rejected",
+        approved_by: actor.id,
+        chairman_note: note || null,
+        approved_at: new Date().toISOString(),
+      })
+      .eq("id", requestId)
+      .eq("status", "requested");
+
+    assertOk(updateError, "Approve finance report edit");
+
+    if (editRequest?.report_id) {
+      await supabase
+        .from("finance_monthly_reports")
+        .update({ status: approved ? "edit_approved" : "draft" })
+        .eq("id", editRequest.report_id);
+    }
+  } else {
+    assertOk(error, "Approve finance report edit");
+  }
+
+  if (editRequest?.requested_by) {
+    await notifyMembers(supabase, [editRequest.requested_by], {
+      title: approved ? "Report edit approved" : "Report edit rejected",
+      message: note || editRequest.reason || "Your finance report edit request was decided.",
+      type: approved ? "finance_report_edit_approved" : "finance_report_edit_rejected",
+      link_url: "/finance/statement-reports",
+    });
+  }
 
   revalidatePath("/finance/statement-reports");
   revalidatePath("/finance/reports");
@@ -597,6 +724,13 @@ export async function applyFinanceReportEdit(formData: FormData) {
     p_notes: notes || null,
   });
   assertOk(error, "Apply finance report edit");
+
+  await notifyRoles(supabase, ["chairman", "admin"], {
+    title: "Finance report edit applied",
+    message: notes || "An approved finance report edit was applied and allocations were recalculated.",
+    type: "finance_report_edit_applied",
+    link_url: "/chairman/finance-reports",
+  });
 
   revalidatePath("/finance/statement-reports");
   revalidatePath("/finance/reports");

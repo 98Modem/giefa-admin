@@ -62,7 +62,10 @@ export type AuditLogRecord = {
 export type NotificationRecord = {
   id: string;
   member_id: string;
+  title?: string | null;
   message: string | null;
+  type?: string | null;
+  link_url?: string | null;
   read: boolean | null;
   created_at: string | null;
 };
@@ -293,11 +296,21 @@ export async function getAuditLogs() {
 
 export async function getNotifications() {
   const supabase = await supabaseServer();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("notifications")
-    .select("id, member_id, message, read, created_at")
+    .select("id, member_id, title, message, type, link_url, read, created_at")
     .order("created_at", { ascending: false })
     .limit(50);
+
+  if (error) {
+    const { data: fallback } = await supabase
+      .from("notifications")
+      .select("id, member_id, message, read, created_at")
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    return (fallback ?? []) as NotificationRecord[];
+  }
 
   return (data ?? []) as NotificationRecord[];
 }

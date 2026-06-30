@@ -3,6 +3,14 @@
 
 begin;
 
+alter table public.notifications
+  add column if not exists title text,
+  add column if not exists type text,
+  add column if not exists link_url text;
+
+create index if not exists notifications_member_read_created_idx
+  on public.notifications (member_id, read, created_at desc);
+
 alter table public.finance_monthly_reports
   add column if not exists manual_interest_amount numeric,
   add column if not exists calculated_interest_amount numeric not null default 0,
