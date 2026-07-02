@@ -45,6 +45,20 @@ type HeaderNotification = {
   created_at: string | null;
 };
 
+const LIVE_DATA_TABLES = [
+  "members",
+  "monthly_contributions",
+  "emergency_funds",
+  "shares",
+  "emergency_requests",
+  "deposit_submissions",
+  "bank_statement_imports",
+  "bank_statement_transactions",
+  "finance_monthly_reports",
+  "finance_interest_allocations",
+  "finance_report_edit_requests",
+] as const;
+
 export function Header() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -58,6 +72,8 @@ export function Header() {
   const menuRef = useRef<HTMLDivElement | null>(null);
   const notificationRef = useRef<HTMLDivElement | null>(null);
   const lastNotificationRefreshRef = useRef(0);
+  const pageRefreshTimerRef = useRef<number | null>(null);
+  const lastPageRefreshRef = useRef(0);
 
   const cancelClose = () => {
     if (closeTimerRef.current !== null) {
@@ -98,6 +114,20 @@ export function Header() {
       notificationCloseTimerRef.current = null;
     }, 180);
   };
+
+  const schedulePageRefresh = useCallback(() => {
+    if (document.visibilityState !== "visible") return;
+
+    if (pageRefreshTimerRef.current !== null) {
+      window.clearTimeout(pageRefreshTimerRef.current);
+    }
+
+    pageRefreshTimerRef.current = window.setTimeout(() => {
+      lastPageRefreshRef.current = Date.now();
+      router.refresh();
+      pageRefreshTimerRef.current = null;
+    }, 700);
+  }, [router]);
 
   useEffect(() => {
     const loadMember = async () => {
@@ -261,6 +291,68 @@ export function Header() {
   }, [loadNotifications, member?.id]);
 
   useEffect(() => {
+    if (!member?.id) return;
+
+    let mounted = true;
+    let channel = supabaseBrowser.channel(`live-page-data:${member.id}`);
+
+    LIVE_DATA_TABLES.forEach((table) => {
+      channel = channel.on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table,
+        },
+        () => {
+          if (mounted) {
+            schedulePageRefresh();
+          }
+        }
+      );
+    });
+
+    channel.subscribe((status) => {
+      if (status === "SUBSCRIBED") {
+        lastPageRefreshRef.current = Date.now();
+      }
+    });
+
+    const refreshOnFocus = () => {
+      if (document.visibilityState === "visible") {
+        schedulePageRefresh();
+      }
+    };
+
+    const safetyInterval = window.setInterval(() => {
+      if (
+        mounted &&
+        document.visibilityState === "visible" &&
+        Date.now() - lastPageRefreshRef.current > 45000
+      ) {
+        schedulePageRefresh();
+      }
+    }, 15000);
+
+    window.addEventListener("focus", refreshOnFocus);
+    document.addEventListener("visibilitychange", refreshOnFocus);
+
+    return () => {
+      mounted = false;
+      window.clearInterval(safetyInterval);
+      window.removeEventListener("focus", refreshOnFocus);
+      document.removeEventListener("visibilitychange", refreshOnFocus);
+
+      if (pageRefreshTimerRef.current !== null) {
+        window.clearTimeout(pageRefreshTimerRef.current);
+        pageRefreshTimerRef.current = null;
+      }
+
+      supabaseBrowser.removeChannel(channel);
+    };
+  }, [member?.id, schedulePageRefresh]);
+
+  useEffect(() => {
     if (!open) return;
 
     const handlePointerDown = (event: PointerEvent) => {
@@ -312,6 +404,10 @@ export function Header() {
     return () => {
       cancelClose();
       cancelNotificationClose();
+
+      if (pageRefreshTimerRef.current !== null) {
+        window.clearTimeout(pageRefreshTimerRef.current);
+      }
     };
   }, []);
 
