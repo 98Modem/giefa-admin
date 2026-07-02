@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { GiefaWorkOverlay } from "@/app/components/loading/GiefaWorkOverlay";
@@ -165,15 +164,7 @@ export default function LoginPage() {
             aria-label="GIEFA logo"
             role="img"
           >
-            <Image
-              src="/logo/auth-logo.png"
-              alt=""
-              width={112}
-              height={112}
-              className="giefa-login-logo-img giefa-login-logo-mark"
-              draggable={false}
-              priority
-            />
+            <span className="giefa-login-logo-img giefa-login-logo-mark" aria-hidden="true" />
           </div>
           <p className="giefa-login-wordmark mb-3 text-3xl font-semibold tracking-[0.24em] text-white">
             GIEFA

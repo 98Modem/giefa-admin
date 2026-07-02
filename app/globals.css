@@ -384,10 +384,10 @@
 
 .giefa-login-logo-img {
   display: block;
-  width: 96px;
-  height: 96px;
-  object-fit: contain;
-  object-position: center;
+  width: 112px;
+  height: 112px;
+  background: url("/logo/auth-logo.png") center / contain no-repeat;
+  transform: translateZ(0);
 }
 
 .giefa-premium-logo {
@@ -448,6 +448,7 @@
 }
 
 .giefa-login-logo-card::before {
+  content: none;
   display: none;
   animation: none;
 }
