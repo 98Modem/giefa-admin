@@ -65,6 +65,7 @@ export function Header() {
   const [member, setMember] = useState<HeaderMember | null>(null);
   const [notifications, setNotifications] = useState<HeaderNotification[]>([]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [showAllNotifications, setShowAllNotifications] = useState(false);
   const [themeMode, setThemeMode] = useState<ThemeMode>("system");
   const [colorTheme, setColorTheme] = useState<ColorTheme>("blue");
   const closeTimerRef = useRef<number | null>(null);
@@ -168,25 +169,35 @@ export function Header() {
     };
   }, []);
 
-  const loadNotifications = useCallback(async (memberId: string) => {
+  const loadNotifications = useCallback(async (memberId: string, includeRead = false) => {
     lastNotificationRefreshRef.current = Date.now();
 
-    const { data, error } = await supabaseBrowser
+    let query = supabaseBrowser
       .from("notifications")
       .select("id, title, message, type, link_url, read, created_at")
       .eq("member_id", memberId)
-      .eq("read", false)
       .order("created_at", { ascending: false })
       .limit(12);
 
+    if (!includeRead) {
+      query = query.eq("read", false);
+    }
+
+    const { data, error } = await query;
+
     if (error) {
-      const { data: fallback } = await supabaseBrowser
+      let fallbackQuery = supabaseBrowser
         .from("notifications")
         .select("id, message, read, created_at")
         .eq("member_id", memberId)
-        .eq("read", false)
         .order("created_at", { ascending: false })
         .limit(12);
+
+      if (!includeRead) {
+        fallbackQuery = fallbackQuery.eq("read", false);
+      }
+
+      const { data: fallback } = await fallbackQuery;
 
       setNotifications((fallback ?? []) as HeaderNotification[]);
       return;
@@ -203,7 +214,7 @@ export function Header() {
 
     const refreshIfMounted = async () => {
       if (!mounted || !member.id) return;
-      await loadNotifications(member.id);
+      await loadNotifications(member.id, showAllNotifications);
     };
 
     void refreshIfMounted();
@@ -222,7 +233,7 @@ export function Header() {
           const incoming = payload.new as HeaderNotification;
 
           setNotifications((current) => {
-            if (incoming.read) {
+            if (incoming.read && !showAllNotifications) {
               return current.filter((notification) => notification.id !== incoming.id);
             }
 
@@ -231,6 +242,7 @@ export function Header() {
               ...current.filter((notification) => notification.id !== incoming.id),
             ].slice(0, 12);
           });
+          schedulePageRefresh();
         }
       )
       .on(
@@ -245,14 +257,19 @@ export function Header() {
           const changed = payload.new as HeaderNotification;
 
           setNotifications((current) => {
-            if (changed.read) {
+            if (changed.read && !showAllNotifications) {
               return current.filter((notification) => notification.id !== changed.id);
             }
 
-            return current.map((notification) =>
-              notification.id === changed.id ? changed : notification
-            );
+            if (current.some((notification) => notification.id === changed.id)) {
+              return current.map((notification) =>
+                notification.id === changed.id ? changed : notification
+              );
+            }
+
+            return [changed, ...current].slice(0, 12);
           });
+          schedulePageRefresh();
         }
       )
       .subscribe((status) => {
@@ -288,7 +305,7 @@ export function Header() {
       document.removeEventListener("visibilitychange", refreshOnFocus);
       supabaseBrowser.removeChannel(channel);
     };
-  }, [loadNotifications, member?.id]);
+  }, [loadNotifications, member?.id, schedulePageRefresh, showAllNotifications]);
 
   useEffect(() => {
     if (!member?.id) return;
@@ -467,7 +484,11 @@ export function Header() {
   const openNotification = async (notification: HeaderNotification) => {
     setNotificationsOpen(false);
     setNotifications((current) =>
-      current.filter((item) => item.id !== notification.id)
+      showAllNotifications
+        ? current.map((item) =>
+            item.id === notification.id ? { ...item, read: true } : item
+          )
+        : current.filter((item) => item.id !== notification.id)
     );
 
     if (!notification.read) {
@@ -478,6 +499,39 @@ export function Header() {
     }
 
     router.push(getNotificationHref(notification));
+  };
+
+  const toggleNotificationView = async () => {
+    if (!member?.id) return;
+
+    const nextShowAll = !showAllNotifications;
+    setShowAllNotifications(nextShowAll);
+    await loadNotifications(member.id, nextShowAll);
+  };
+
+  const clearNotifications = async () => {
+    if (!member?.id || notifications.length === 0) return;
+
+    const unreadIds = notifications
+      .filter((notification) => !notification.read)
+      .map((notification) => notification.id);
+
+    if (unreadIds.length === 0) return;
+
+    setNotifications((current) =>
+      showAllNotifications
+        ? current.map((notification) =>
+            unreadIds.includes(notification.id)
+              ? { ...notification, read: true }
+              : notification
+          )
+        : current.filter((notification) => !unreadIds.includes(notification.id))
+    );
+
+    await supabaseBrowser
+      .from("notifications")
+      .update({ read: true })
+      .in("id", unreadIds);
   };
 
   const displayName =
@@ -528,19 +582,33 @@ export function Header() {
             </button>
 
             {notificationsOpen && (
-              <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] origin-top-right rounded-lg border border-[var(--app-border)] bg-[var(--app-surface-strong)] p-2 shadow-xl ring-1 ring-black/5 dark:ring-white/10">
-                <div className="flex items-center justify-between border-b border-gray-100 px-2 py-2 dark:border-gray-800">
-                  <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                    Notifications
-                  </p>
-                  <span className="text-xs text-gray-500 dark:text-gray-400">
-                    {unreadCount} unread
-                  </span>
+              <div className="absolute right-0 mt-2 w-96 max-w-[calc(100vw-2rem)] origin-top-right overflow-hidden rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-strong)] shadow-2xl ring-1 ring-black/5 dark:ring-white/10">
+                <div className="flex items-start justify-between gap-3 border-b border-gray-100 px-4 py-3 dark:border-gray-800">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                      Notifications
+                    </p>
+                    <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                      {showAllNotifications
+                        ? `${notifications.length} recent`
+                        : `${unreadCount} unread`}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={clearNotifications}
+                    disabled={unreadCount === 0}
+                    className="rounded-md px-2 py-1 text-xs font-semibold text-brand-700 transition hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-brand-200 dark:hover:bg-white/10"
+                  >
+                    Clear all
+                  </button>
                 </div>
-                <div className="max-h-96 overflow-y-auto py-1">
+                <div className="max-h-96 overflow-y-auto p-2">
                   {notifications.length === 0 ? (
-                    <p className="px-3 py-6 text-center text-sm text-gray-500 dark:text-gray-300">
-                      No notifications yet.
+                    <p className="px-3 py-8 text-center text-sm text-gray-500 dark:text-gray-300">
+                      {showAllNotifications
+                        ? "No notifications yet."
+                        : "No unread notifications."}
                     </p>
                   ) : (
                     notifications.map((notification) => (
@@ -564,6 +632,15 @@ export function Header() {
                       </button>
                     ))
                   )}
+                </div>
+                <div className="grid border-t border-gray-100 bg-gray-50 dark:border-gray-800 dark:bg-white/5">
+                  <button
+                    type="button"
+                    onClick={toggleNotificationView}
+                    className="px-4 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-white/10"
+                  >
+                    {showAllNotifications ? "Show only unread" : "Show all"}
+                  </button>
                 </div>
               </div>
             )}
