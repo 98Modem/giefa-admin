@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { GiefaLogoMark } from "@/app/components/brand/GiefaLogoMark";
 import { GiefaWorkOverlay } from "@/app/components/loading/GiefaWorkOverlay";
 import { supabaseBrowser } from "@/app/lib/supabase/client";
 
@@ -161,12 +161,19 @@ export default function LoginPage() {
       <div className="relative hidden w-1/2 items-center justify-center overflow-hidden bg-brand-950 lg:flex">
         <div className="text-center">
           <div
-            className="giefa-naked-logo mx-auto mb-6"
+            className="giefa-login-logo-drop giefa-login-logo-card giefa-premium-logo mx-auto mb-7 flex h-36 w-36 items-center justify-center rounded-[2rem]"
             aria-label="GIEFA logo"
             role="img"
           >
-            <span className="giefa-naked-logo-seed" aria-hidden="true" />
-            <GiefaLogoMark className="giefa-visible-logo" animated />
+            <Image
+              src="/logo/auth-logo.png"
+              alt=""
+              width={112}
+              height={112}
+              className="giefa-login-logo-img giefa-login-logo-mark"
+              draggable={false}
+              priority
+            />
           </div>
           <p className="giefa-login-wordmark mb-3 text-3xl font-semibold tracking-[0.24em] text-white">
             GIEFA

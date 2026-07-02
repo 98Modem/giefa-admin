@@ -441,6 +441,17 @@
   animation: giefa-logo-glow 2.6s ease-out 0.82s both;
 }
 
+.giefa-login-logo-card {
+  animation:
+    giefa-logo-drop 980ms cubic-bezier(0.18, 1, 0.32, 1) both,
+    giefa-logo-float 4.8s ease-in-out 1.4s infinite;
+}
+
+.giefa-login-logo-card::before {
+  display: none;
+  animation: none;
+}
+
 .giefa-naked-logo {
   position: relative;
   width: clamp(8.5rem, 12vw, 11.5rem);

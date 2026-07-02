@@ -37,6 +37,7 @@ export function StatementReportForm({ defaultMonth }: { defaultMonth: string }) 
   const [notes, setNotes] = useState("");
   const [summary, setSummary] = useState<ExtractedSummary | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [statementFileName, setStatementFileName] = useState("");
 
   function assignDroppedFile(file: File) {
     if (!fileRef.current) return;
@@ -44,6 +45,7 @@ export function StatementReportForm({ defaultMonth }: { defaultMonth: string }) 
     const transfer = new DataTransfer();
     transfer.items.add(file);
     fileRef.current.files = transfer.files;
+    setStatementFileName(file.name);
     void scanStatement(file);
   }
 
@@ -52,6 +54,7 @@ export function StatementReportForm({ defaultMonth }: { defaultMonth: string }) 
 
     if (!file) return;
 
+    setStatementFileName(file.name);
     setScanError("");
     setScanStatus("Scanning statement...");
 
@@ -170,6 +173,7 @@ export function StatementReportForm({ defaultMonth }: { defaultMonth: string }) 
           onDragOver={(event) => event.preventDefault()}
           onDragLeave={(event) => {
             event.preventDefault();
+            if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
             setIsDragging(false);
           }}
           onDrop={(event) => {
@@ -178,23 +182,56 @@ export function StatementReportForm({ defaultMonth }: { defaultMonth: string }) 
             const file = event.dataTransfer.files[0];
             if (file) assignDroppedFile(file);
           }}
-          className={`rounded-lg border border-dashed p-4 transition ${
+          onClick={() => fileRef.current?.click()}
+          className={`group flex min-h-44 cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed p-6 text-center transition ${
             isDragging
-              ? "border-brand-500 bg-brand-50 dark:border-brand-300 dark:bg-brand-500/15"
-              : "border-gray-300 bg-gray-50 dark:border-white/15 dark:bg-white/5"
+              ? "scale-[1.01] border-brand-500 bg-brand-50 shadow-lg shadow-brand-500/10 dark:border-brand-300 dark:bg-brand-500/15"
+              : "border-gray-300 bg-gray-50 hover:border-brand-400 hover:bg-brand-50/60 dark:border-white/15 dark:bg-white/5 dark:hover:border-brand-300 dark:hover:bg-brand-500/10"
           }`}
         >
+          <div
+            className={`mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border transition ${
+              isDragging
+                ? "border-brand-300 bg-white text-brand-700 dark:border-brand-200 dark:bg-white/10 dark:text-brand-100"
+                : "border-gray-200 bg-white text-gray-500 group-hover:border-brand-200 group-hover:text-brand-600 dark:border-white/15 dark:bg-white/10 dark:text-gray-200"
+            }`}
+            aria-hidden="true"
+          >
+            <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="M12 15V4" strokeLinecap="round" />
+              <path d="m7 9 5-5 5 5" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M5 15v3.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V15" strokeLinecap="round" />
+            </svg>
+          </div>
+          <p className="text-base font-semibold text-gray-900 dark:text-white">
+            {isDragging ? "Drop the statement here" : "Drop bank statement anywhere in this box"}
+          </p>
+          <p className="mt-2 max-w-md text-sm font-normal leading-6 text-gray-500 dark:text-gray-300">
+            PDF, CSV, TSV, or text files are accepted. The whole area is clickable for desktop and mobile users.
+          </p>
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+            <span className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition group-hover:bg-brand-600">
+              Browse file
+            </span>
+            {statementFileName ? (
+              <span className="max-w-[18rem] truncate rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 dark:border-white/15 dark:bg-white/10 dark:text-gray-100">
+                {statementFileName}
+              </span>
+            ) : (
+              <span className="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                No file selected
+              </span>
+            )}
+          </div>
           <input
             ref={fileRef}
             type="file"
             name="statement_file"
             accept=".csv,.txt,.tsv,.pdf,application/pdf,text/plain,text/csv"
+            onClick={(event) => event.stopPropagation()}
             onChange={() => scanStatement()}
-            className="w-full text-sm text-gray-700 file:mr-4 file:rounded-md file:border-0 file:bg-brand-500 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white dark:text-gray-100"
+            className="sr-only"
           />
-          <p className="mt-3 text-xs font-medium text-gray-500 dark:text-gray-300">
-            Drag and drop a statement here, or browse from your device.
-          </p>
         </div>
       </label>
 
