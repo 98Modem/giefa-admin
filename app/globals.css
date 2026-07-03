@@ -384,11 +384,11 @@
 
 .giefa-login-logo-img {
   display: block;
-  width: 86px;
-  height: 86px;
+  width: 94px;
+  height: 94px;
   object-fit: contain;
   object-position: center;
-  transform: translateZ(0) scale(1.02);
+  transform: translateZ(0);
 }
 
 .giefa-premium-logo {

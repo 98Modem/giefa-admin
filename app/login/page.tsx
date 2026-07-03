@@ -167,7 +167,7 @@ export default function LoginPage() {
             role="img"
           >
             <img
-              src="/logo/auth-logo-shadow.png"
+              src="/logo/auth-logo-login.png"
               alt=""
               className="giefa-login-logo-img giefa-login-logo-mark"
               draggable={false}
