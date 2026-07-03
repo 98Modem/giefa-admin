@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element */
+
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -164,7 +166,12 @@ export default function LoginPage() {
             aria-label="GIEFA logo"
             role="img"
           >
-            <span className="giefa-login-logo-img giefa-login-logo-mark" aria-hidden="true" />
+            <img
+              src="/logo/auth-logo-shadow.png"
+              alt=""
+              className="giefa-login-logo-img giefa-login-logo-mark"
+              draggable={false}
+            />
           </div>
           <p className="giefa-login-wordmark mb-3 text-3xl font-semibold tracking-[0.24em] text-white">
             GIEFA
