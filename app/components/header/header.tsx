@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowRightOnRectangleIcon,
   BellIcon,
   ChevronDownIcon,
   Cog6ToothIcon,
+  MagnifyingGlassIcon,
   MoonIcon,
   SunIcon,
   SwatchIcon,
@@ -22,6 +23,8 @@ import {
   ThemeMode,
 } from "@/app/lib/preferences";
 import { saveLocalPreferences } from "@/app/components/theme/ThemeProvider";
+import { SIDEBAR_MENU } from "@/app/components/sidebar/sidebar.config";
+import { Role } from "@/app/employee_type/roles";
 
 type HeaderMember = {
   id: string;
@@ -45,6 +48,14 @@ type HeaderNotification = {
   created_at: string | null;
 };
 
+type SearchDestination = {
+  title: string;
+  group: string;
+  href: string;
+  keywords: string;
+  roles: Role[];
+};
+
 const LIVE_DATA_TABLES = [
   "members",
   "monthly_contributions",
@@ -59,6 +70,105 @@ const LIVE_DATA_TABLES = [
   "finance_report_edit_requests",
 ] as const;
 
+const SEARCH_KEYWORDS: Record<string, string> = {
+  "/dashboard": "home overview summary balances growth chart fund breakdown contributions",
+  "/dashboard/profile": "profile avatar photo picture preferences theme color sidebar account settings",
+  "/account/emergency-fund": "emergency balance savings personal fund member",
+  "/account/investment-fund": "investment shares balance interest personal fund member",
+  "/account/interest": "interest earned profit return growth allocation member",
+  "/funds/deposit-proof": "upload proof contribution evidence screenshot bank deposit payment scan ocr ai",
+  "/funds/request": "request emergency fund withdraw application cash assistance",
+  "/funds/my-requests": "my requests status history emergency fund applications",
+  "/funds/pending": "pending requests approve reject treasurer emergency",
+  "/funds/approved": "approved requests paid completed emergency",
+  "/finance/deposit-submissions": "deposit reviews approve reject proof member contributions treasurer",
+  "/finance/monthly-savings": "monthly savings contributions deposits member ledgers",
+  "/finance/interest-growth": "interest growth returns profit allocation investment",
+  "/finance/statement-reports": "statement reports bank statement upload pdf monthly close edit request approval",
+  "/finance/reports": "financial reports analytics finance monthly",
+  "/members/pending": "pending applications approve deny new users signup general secretary",
+  "/members/active": "active members approved users membership",
+  "/members/suspended": "suspended members restore suspension blocked",
+  "/members/meetings": "meetings schedule governance calendar secretary",
+  "/chairman/finance-overview": "chairman overview finance governance totals",
+  "/chairman/finance-reports": "chairman reports approve edit review monthly statement",
+  "/governance/activity-logs": "activity logs audit governance actions history",
+  "/governance/deletion-approvals": "deletion approvals suspension reviews restore keep suspended",
+  "/system/users": "users roles admin manage members permissions",
+  "/system/permissions": "permissions access control roles admin",
+  "/system/audit-logs": "audit logs system history admin",
+  "/system/settings": "settings system configuration admin",
+};
+
+const profileDestination: SearchDestination = {
+  title: "Profile, photo, and preferences",
+  group: "My Account",
+  href: "/dashboard/profile",
+  keywords: SEARCH_KEYWORDS["/dashboard/profile"],
+  roles: ["admin", "chairman", "general_sec", "treasurer", "member"],
+};
+
+function buildSearchDestinations(role: Role | null | undefined) {
+  const currentRole = role ?? "member";
+  const destinations: SearchDestination[] = [];
+
+  for (const item of SIDEBAR_MENU) {
+    if (!item.roles.includes(currentRole)) continue;
+
+    if (item.href) {
+      destinations.push({
+        title: item.title,
+        group: "Navigation",
+        href: item.href,
+        keywords: `${item.title} ${item.href} ${SEARCH_KEYWORDS[item.href] ?? ""}`,
+        roles: item.roles,
+      });
+    }
+
+    for (const subItem of item.subMenu ?? []) {
+      const allowedRoles = subItem.roles ?? item.roles;
+      if (!allowedRoles.includes(currentRole)) continue;
+
+      destinations.push({
+        title: subItem.title,
+        group: item.title,
+        href: subItem.href,
+        keywords: `${item.title} ${subItem.title} ${subItem.href} ${
+          SEARCH_KEYWORDS[subItem.href] ?? ""
+        }`,
+        roles: allowedRoles,
+      });
+    }
+  }
+
+  if (profileDestination.roles.includes(currentRole)) {
+    destinations.push(profileDestination);
+  }
+
+  return destinations;
+}
+
+function scoreDestination(destination: SearchDestination, query: string) {
+  const normalizedQuery = query.trim().toLowerCase();
+  const title = destination.title.toLowerCase();
+  const group = destination.group.toLowerCase();
+  const href = destination.href.toLowerCase();
+  const keywords = destination.keywords.toLowerCase();
+
+  if (!normalizedQuery) return 0;
+  if (href === normalizedQuery) return 100;
+  if (title === normalizedQuery) return 90;
+  if (title.startsWith(normalizedQuery)) return 80;
+  if (group.startsWith(normalizedQuery)) return 68;
+  if (href.includes(normalizedQuery)) return 62;
+  if (keywords.includes(normalizedQuery)) return 50;
+
+  const terms = normalizedQuery.split(/\s+/).filter(Boolean);
+  const matchedTerms = terms.filter((term) => keywords.includes(term)).length;
+
+  return matchedTerms > 0 ? 28 + matchedTerms * 8 : 0;
+}
+
 export function Header() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -66,12 +176,16 @@ export function Header() {
   const [notifications, setNotifications] = useState<HeaderNotification[]>([]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [showAllNotifications, setShowAllNotifications] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [selectedSearchIndex, setSelectedSearchIndex] = useState(0);
   const [themeMode, setThemeMode] = useState<ThemeMode>("system");
   const [colorTheme, setColorTheme] = useState<ColorTheme>("blue");
   const closeTimerRef = useRef<number | null>(null);
   const notificationCloseTimerRef = useRef<number | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const notificationRef = useRef<HTMLDivElement | null>(null);
+  const searchRef = useRef<HTMLDivElement | null>(null);
   const lastNotificationRefreshRef = useRef(0);
   const pageRefreshTimerRef = useRef<number | null>(null);
   const lastPageRefreshRef = useRef(0);
@@ -166,6 +280,20 @@ export function Header() {
 
     return () => {
       window.removeEventListener("giefa-profile-updated", loadMember);
+    };
+  }, []);
+
+  useEffect(() => {
+    const closeSearch = (event: MouseEvent) => {
+      if (!searchRef.current?.contains(event.target as Node)) {
+        setSearchOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", closeSearch);
+
+    return () => {
+      document.removeEventListener("mousedown", closeSearch);
     };
   }, []);
 
@@ -538,19 +666,159 @@ export function Header() {
     [member?.first_name, member?.last_name].filter(Boolean).join(" ") ||
     "GIEFA user";
   const role = member?.role?.replace("_", " ") ?? "member";
+  const memberRole = member?.role as Role | null | undefined;
+  const searchDestinations = useMemo(
+    () => buildSearchDestinations(memberRole),
+    [memberRole]
+  );
+  const searchResults = useMemo(() => {
+    const query = searchQuery.trim();
+
+    if (!query) return searchDestinations.slice(0, 6);
+
+    return searchDestinations
+      .map((destination) => ({
+        destination,
+        score: scoreDestination(destination, query),
+      }))
+      .filter((result) => result.score > 0)
+      .sort((a, b) => b.score - a.score || a.destination.title.localeCompare(b.destination.title))
+      .map((result) => result.destination)
+      .slice(0, 8);
+  }, [searchDestinations, searchQuery]);
   const unreadCount = notifications.filter((notification) => !notification.read).length;
   const avatarPosition = `${member?.avatar_position_x ?? 50}% ${
     member?.avatar_position_y ?? 50
   }%`;
 
+  const openSearchDestination = (destination: SearchDestination) => {
+    setSearchQuery("");
+    setSearchOpen(false);
+    setSelectedSearchIndex(0);
+    router.push(destination.href);
+  };
+
+  const submitSearch = () => {
+    const query = searchQuery.trim();
+
+    if (query.startsWith("/")) {
+      setSearchQuery("");
+      setSearchOpen(false);
+      router.push(query);
+      return;
+    }
+
+    if (searchResults[0]) {
+      openSearchDestination(searchResults[0]);
+    }
+  };
+
   return (
     <header className="theme-header sticky top-0 z-40 flex w-full border-b px-4 py-3">
-      <div className="flex flex-1 items-center justify-between">
+      <div className="flex flex-1 flex-wrap items-center gap-3">
         <h1 className="text-lg font-semibold text-gray-800 dark:text-white">
           GIEFA Dashboard
         </h1>
 
-        <div className="flex items-center gap-3">
+        <div
+          ref={searchRef}
+          className="relative order-3 flex w-full flex-1 justify-center lg:order-none lg:mx-3 lg:w-auto"
+        >
+          <form
+            className="w-full max-w-xl"
+            onSubmit={(event) => {
+              event.preventDefault();
+              submitSearch();
+            }}
+          >
+            <div className="relative">
+              <MagnifyingGlassIcon
+                className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400"
+                aria-hidden="true"
+              />
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(event) => {
+                  setSearchQuery(event.target.value);
+                  setSearchOpen(true);
+                  setSelectedSearchIndex(0);
+                }}
+                onFocus={() => setSearchOpen(true)}
+                onKeyDown={(event) => {
+                  if (event.key === "ArrowDown") {
+                    event.preventDefault();
+                    setSelectedSearchIndex((current) =>
+                      Math.min(current + 1, Math.max(searchResults.length - 1, 0))
+                    );
+                  }
+
+                  if (event.key === "ArrowUp") {
+                    event.preventDefault();
+                    setSelectedSearchIndex((current) => Math.max(current - 1, 0));
+                  }
+
+                  if (event.key === "Escape") {
+                    setSearchOpen(false);
+                  }
+
+                  if (event.key === "Enter" && searchResults[selectedSearchIndex]) {
+                    event.preventDefault();
+                    openSearchDestination(searchResults[selectedSearchIndex]);
+                  }
+                }}
+                placeholder="Search members, deposits, reports, settings..."
+                className="h-11 w-full rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] pl-10 pr-4 text-sm font-medium text-gray-800 shadow-sm outline-none transition placeholder:text-gray-400 focus:border-brand-400 focus:ring-4 focus:ring-brand-500/10 dark:text-white"
+                aria-label="Search GIEFA"
+              />
+            </div>
+          </form>
+
+          {searchOpen && (
+            <div className="absolute top-full mt-2 w-full max-w-xl overflow-hidden rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-strong)] shadow-2xl ring-1 ring-black/5 dark:ring-white/10">
+              <div className="border-b border-gray-100 px-4 py-3 dark:border-gray-800">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  {searchQuery.trim() ? "Search results" : "Quick destinations"}
+                </p>
+              </div>
+              <div className="max-h-96 overflow-y-auto p-2">
+                {searchResults.length === 0 ? (
+                  <p className="px-3 py-8 text-center text-sm text-gray-500 dark:text-gray-300">
+                    No matching place found. Try &quot;deposit&quot;, &quot;members&quot;, &quot;reports&quot;, or type a URL like /dashboard.
+                  </p>
+                ) : (
+                  searchResults.map((destination, index) => (
+                    <button
+                      key={destination.href}
+                      type="button"
+                      onMouseEnter={() => setSelectedSearchIndex(index)}
+                      onClick={() => openSearchDestination(destination)}
+                      className={`grid w-full grid-cols-[1fr_auto] items-center gap-3 rounded-lg px-3 py-3 text-left transition ${
+                        selectedSearchIndex === index
+                          ? "bg-brand-50 text-brand-900 dark:bg-white/10 dark:text-white"
+                          : "text-gray-800 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-white/10"
+                      }`}
+                    >
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-semibold">
+                          {destination.title}
+                        </span>
+                        <span className="mt-0.5 block truncate text-xs text-gray-500 dark:text-gray-400">
+                          {destination.group}
+                        </span>
+                      </span>
+                      <span className="hidden rounded-md bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-500 dark:bg-white/10 dark:text-gray-300 xl:block">
+                        {destination.href}
+                      </span>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="ml-auto flex items-center gap-3">
           <div
             ref={notificationRef}
             className="relative"
