@@ -47,8 +47,16 @@ const publicRoutes = [
 ];
 
 const authLandingRoutes = ["/login", "/signup"];
+const publicAssetPattern =
+  /\.(?:avif|css|gif|ico|jpg|jpeg|js|json|map|pdf|png|svg|txt|webp|xml)$/i;
 
 export async function middleware(req: NextRequest) {
+  const pathname = req.nextUrl.pathname;
+
+  if (pathname.startsWith("/logo/") || publicAssetPattern.test(pathname)) {
+    return NextResponse.next();
+  }
+
   const res = NextResponse.next({ request: req });
 
   const supabase = createServerClient(
@@ -73,7 +81,6 @@ export async function middleware(req: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const pathname = req.nextUrl.pathname;
   const isPublicRoute = publicRoutes.includes(pathname);
 
   if (!user) {
@@ -134,5 +141,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|logo/).*)"],
 };
