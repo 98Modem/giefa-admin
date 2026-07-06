@@ -371,7 +371,7 @@
 }
 
 .giefa-login-logo-drop {
-  animation: giefa-logo-drop 980ms cubic-bezier(0.18, 1, 0.32, 1) both;
+  animation: giefa-logo-drop 1.45s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .giefa-login-logo-mark {
@@ -379,7 +379,7 @@
   z-index: 5;
   opacity: 1;
   filter: drop-shadow(0 18px 22px rgba(0, 0, 0, 0.28));
-  animation: giefa-logo-mark-pop 980ms cubic-bezier(0.18, 1, 0.32, 1) both;
+  animation: giefa-logo-mark-pop 1.22s cubic-bezier(0.16, 1, 0.3, 1) 140ms both;
 }
 
 .giefa-login-logo-img {
@@ -396,18 +396,20 @@
   isolation: isolate;
   overflow: hidden;
   background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.055) 44%, rgba(255, 255, 255, 0.12)),
-    radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.28), transparent 32%),
-    rgba(255, 255, 255, 0.075);
-  border: 1px solid rgba(255, 255, 255, 0.18);
+    linear-gradient(145deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0.06) 42%, rgba(255, 255, 255, 0.14)),
+    radial-gradient(circle at 24% 18%, rgba(255, 255, 255, 0.34), transparent 31%),
+    radial-gradient(circle at 78% 92%, rgba(18, 183, 106, 0.16), transparent 36%),
+    rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.24);
   box-shadow:
-    0 38px 80px -42px rgba(0, 0, 0, 0.85),
-    0 20px 52px -32px rgba(18, 183, 106, 0.5),
-    0 18px 56px -36px rgba(70, 95, 255, 0.44),
-    0 0 0 1px rgba(255, 255, 255, 0.06),
-    inset 0 1px 0 rgba(255, 255, 255, 0.28),
-    inset 0 -24px 42px rgba(0, 0, 0, 0.18);
-  backdrop-filter: blur(18px) saturate(140%);
+    0 44px 92px -46px rgba(0, 0, 0, 0.88),
+    0 24px 68px -34px rgba(18, 183, 106, 0.58),
+    0 20px 64px -38px rgba(70, 95, 255, 0.42),
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.42),
+    inset 1px 0 0 rgba(255, 255, 255, 0.18),
+    inset 0 -28px 46px rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(20px) saturate(145%);
 }
 
 .giefa-premium-logo::before {
@@ -433,21 +435,23 @@
 .giefa-premium-logo::after {
   content: "";
   position: absolute;
-  inset: 10%;
+  inset: 4%;
   z-index: -1;
   border-radius: 999px;
   background:
-    radial-gradient(circle, rgba(18, 183, 106, 0.54), transparent 58%),
-    radial-gradient(circle, rgba(70, 95, 255, 0.5), transparent 62%);
-  filter: blur(24px);
+    radial-gradient(circle, rgba(18, 183, 106, 0.62), transparent 58%),
+    radial-gradient(circle, rgba(70, 95, 255, 0.46), transparent 64%);
+  filter: blur(28px);
   opacity: 0;
   animation: giefa-logo-glow 2.6s ease-out 0.82s both;
 }
 
 .giefa-login-logo-card {
   animation:
-    giefa-logo-drop 980ms cubic-bezier(0.18, 1, 0.32, 1) both,
-    giefa-logo-float 4.8s ease-in-out 1.4s infinite;
+    giefa-logo-drop 1.45s cubic-bezier(0.16, 1, 0.3, 1) both,
+    giefa-logo-float 5.4s ease-in-out 1.8s infinite;
+  outline: 1px solid rgba(255, 255, 255, 0.08);
+  outline-offset: -5px;
 }
 
 .giefa-login-logo-card::before {
@@ -559,11 +563,15 @@
 @keyframes giefa-logo-drop {
   0% {
     opacity: 0;
-    transform: translate(34px, -34px) scale(0.96);
+    transform: translate(70px, -86px) scale(0.9);
   }
-  68% {
+  62% {
     opacity: 1;
-    transform: translate(-3px, 4px) scale(1.018);
+    transform: translate(-5px, 8px) scale(1.022);
+  }
+  82% {
+    opacity: 1;
+    transform: translate(2px, -2px) scale(0.996);
   }
   100% {
     opacity: 1;
