@@ -404,8 +404,12 @@ export async function createMonthlyFinanceReport(formData: FormData) {
     .eq("auth_user_id", session.user.id)
     .maybeSingle<{ id: string; role: string; status: string }>();
 
-  if (!actor || actor.status !== "approved" || !["treasurer", "admin"].includes(actor.role)) {
-    throw new Error("Only treasurer or admin can generate finance reports.");
+  if (
+    !actor ||
+    actor.status !== "approved" ||
+    !["treasurer", "chairman", "admin"].includes(actor.role)
+  ) {
+    throw new Error("Only treasurer, chairman, or admin can generate finance reports.");
   }
 
   let statementFilePath: string | null = null;
@@ -592,8 +596,14 @@ export async function requestFinanceReportEdit(formData: FormData) {
       .eq("auth_user_id", session.user.id)
       .maybeSingle<{ id: string; role: string; status: string }>();
 
-    if (!actor || actor.status !== "approved" || !["treasurer", "admin"].includes(actor.role)) {
-      throw new Error("Request finance report edit failed: only treasurer or admin can request edits.");
+    if (
+      !actor ||
+      actor.status !== "approved" ||
+      !["treasurer", "chairman", "admin"].includes(actor.role)
+    ) {
+      throw new Error(
+        "Request finance report edit failed: only treasurer, chairman, or admin can request edits."
+      );
     }
 
     const { error: insertError } = await supabase

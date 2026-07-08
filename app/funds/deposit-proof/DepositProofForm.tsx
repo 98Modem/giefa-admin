@@ -26,6 +26,11 @@ type Extraction = {
   notes: string;
 };
 
+type SelectedProof = {
+  file: File;
+  previewUrl: string | null;
+};
+
 const fieldClass =
   "mt-2 h-12 w-full rounded-lg border border-gray-200 bg-white px-3 text-base text-gray-900 shadow-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-white/15 dark:bg-white/10 dark:text-white sm:text-sm";
 
@@ -37,10 +42,27 @@ function setInputValue(ref: RefObject<HTMLInputElement | null>, value: string | 
   ref.current.value = String(value);
 }
 
+function toMoney(value: number) {
+  return Math.max(0, Math.round(value || 0));
+}
+
+function defaultEmergencyAllocation(total: number) {
+  return toMoney(total * 0.3);
+}
+
+function proofIsSupported(file: File) {
+  return (
+    file.type.startsWith("image/") ||
+    file.type === "application/pdf" ||
+    file.type === "text/plain" ||
+    /\.pdf$/i.test(file.name) ||
+    /\.txt$/i.test(file.name)
+  );
+}
+
 export function DepositProofForm({ action }: DepositProofFormProps) {
   const [isScanning, startScan] = useTransition();
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [selectedFileName, setSelectedFileName] = useState("");
+  const [selectedProofs, setSelectedProofs] = useState<SelectedProof[]>([]);
   const [extraction, setExtraction] = useState<Extraction | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
   const [isDraggingProof, setIsDraggingProof] = useState(false);
@@ -58,44 +80,80 @@ export function DepositProofForm({ action }: DepositProofFormProps) {
 
   const confidenceLabel = useMemo(() => {
     if (!extraction) return "Not scanned";
-    return `${Math.round(extraction.confidence * 100)}% confidence`;
+    const percent = Math.round(extraction.confidence * 100);
+    if (percent >= 90) return `High-confidence extraction (${percent}%)`;
+    if (percent >= 70) return `Good extraction (${percent}%)`;
+    return `Needs careful review (${percent}%)`;
   }, [extraction]);
+
+  const selectedFileNames = selectedProofs.map((proof) => proof.file.name);
+  const previewProof = selectedProofs.find((proof) => proof.previewUrl);
 
   useEffect(() => {
     return () => {
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      selectedProofs.forEach((proof) => {
+        if (proof.previewUrl) URL.revokeObjectURL(proof.previewUrl);
+      });
     };
-  }, [previewUrl]);
+  }, [selectedProofs]);
 
-  function handleProofChange(nextFile?: File) {
-    const file = nextFile ?? proofRef.current?.files?.[0];
+  function setProofFiles(files: File[]) {
     setExtraction(null);
     setScanError(null);
 
-    if (!file) {
-      setPreviewUrl(null);
-      setSelectedFileName("");
+    selectedProofs.forEach((proof) => {
+      if (proof.previewUrl) URL.revokeObjectURL(proof.previewUrl);
+    });
+
+    const supportedFiles = files.filter(proofIsSupported).slice(0, 6);
+
+    if (!supportedFiles.length) {
+      setSelectedProofs([]);
       return;
     }
 
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    setSelectedFileName(file.name);
-    setPreviewUrl(URL.createObjectURL(file));
+    const nextProofs = supportedFiles.map((file) => ({
+      file,
+      previewUrl: file.type.startsWith("image/") ? URL.createObjectURL(file) : null,
+    }));
+
+    setSelectedProofs(nextProofs);
+    void scanProof(supportedFiles);
   }
 
-  function assignDroppedProof(file: File) {
+  function handleProofChange() {
+    setProofFiles(Array.from(proofRef.current?.files ?? []));
+  }
+
+  function assignDroppedProofs(files: FileList) {
     if (!proofRef.current) return;
 
     const transfer = new DataTransfer();
-    transfer.items.add(file);
+    Array.from(files)
+      .filter(proofIsSupported)
+      .slice(0, 6)
+      .forEach((file) => transfer.items.add(file));
     proofRef.current.files = transfer.files;
-    handleProofChange(file);
+    setProofFiles(Array.from(transfer.files));
+  }
+
+  function updateInvestmentBalance(totalValue?: number, emergencyValue?: number) {
+    const total = toMoney(totalValue ?? Number(amountRef.current?.value));
+    const emergency = Math.min(total, toMoney(emergencyValue ?? Number(emergencyRef.current?.value)));
+    setInputValue(emergencyRef, emergency);
+    setInputValue(investmentRef, total - emergency);
+  }
+
+  function updateDefaultAllocation(totalValue?: number) {
+    const total = toMoney(totalValue ?? Number(amountRef.current?.value));
+    const emergency = defaultEmergencyAllocation(total);
+    setInputValue(emergencyRef, emergency);
+    setInputValue(investmentRef, total - emergency);
   }
 
   function applyExtraction(next: Extraction) {
     setInputValue(amountRef, next.amount);
-    setInputValue(emergencyRef, next.emergency_amount ?? 0);
-    setInputValue(investmentRef, next.investment_amount ?? next.amount);
+    if (next.amount) updateDefaultAllocation(next.amount);
     setInputValue(monthRef, next.contribution_month);
     setInputValue(dateRef, next.deposit_date);
     setInputValue(referenceRef, next.bank_reference);
@@ -104,17 +162,17 @@ export function DepositProofForm({ action }: DepositProofFormProps) {
     setInputValue(notesRef, next.notes);
   }
 
-  function scanProof() {
-    const file = proofRef.current?.files?.[0];
-    if (!file) {
-      setScanError("Choose a screenshot before scanning.");
+  function scanProof(files?: File[]) {
+    const proofFiles = files ?? Array.from(proofRef.current?.files ?? []);
+    if (!proofFiles.length) {
+      setScanError("Choose at least one proof file before scanning.");
       return;
     }
 
     setScanError(null);
     startScan(async () => {
       const formData = new FormData();
-      formData.append("proof", file);
+      proofFiles.forEach((file) => formData.append("proofs", file));
 
       const response = await fetch("/api/deposit-proof/extract", {
         method: "POST",
@@ -166,16 +224,17 @@ export function DepositProofForm({ action }: DepositProofFormProps) {
                     Upload payment proof
                   </h3>
                   <p className="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-200">
-                    Choose a screenshot from your phone or computer. PNG, JPG, and WebP are supported.
+                    Drop or choose one or more screenshots, PDFs, or text files. GIEFA scans them immediately and pre-fills what it can read.
                   </p>
                 </div>
               </div>
 
               <input
                 ref={proofRef}
-                name="proof"
+                name="proofs"
                 type="file"
-                accept="image/png,image/jpeg,image/webp"
+                accept="image/png,image/jpeg,image/webp,application/pdf,text/plain,.pdf,.txt"
+                multiple
                 onChange={() => handleProofChange()}
                 className="sr-only"
               />
@@ -193,17 +252,16 @@ export function DepositProofForm({ action }: DepositProofFormProps) {
                 onDrop={(event) => {
                   event.preventDefault();
                   setIsDraggingProof(false);
-                  const file = event.dataTransfer.files[0];
-                  if (file) assignDroppedProof(file);
+                  if (event.dataTransfer.files.length) assignDroppedProofs(event.dataTransfer.files);
                 }}
-                className={`mt-4 rounded-xl border border-dashed p-3 transition ${
+                className={`mt-4 rounded-2xl border border-dashed p-4 transition sm:p-5 ${
                   isDraggingProof
                     ? "border-brand-500 bg-brand-50 dark:border-brand-300 dark:bg-brand-500/15"
                     : "border-gray-300 bg-gray-50 dark:border-white/15 dark:bg-black/20"
                 }`}
               >
                 <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300">
-                  Drop screenshot here or browse
+                  Drop files anywhere in this box or browse
                 </p>
                 <div className="grid gap-3 sm:grid-cols-2">
                 <button
@@ -211,40 +269,50 @@ export function DepositProofForm({ action }: DepositProofFormProps) {
                   onClick={() => proofRef.current?.click()}
                   className="flex min-h-14 items-center justify-center rounded-lg bg-brand-500 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
                 >
-                  Choose Screenshot
+                  Choose Proof Files
                 </button>
                 <button
                   type="button"
-                  onClick={scanProof}
-                  disabled={isScanning || !selectedFileName}
+                  onClick={() => scanProof()}
+                  disabled={isScanning || selectedProofs.length === 0}
                   className="flex min-h-14 items-center justify-center rounded-lg border border-brand-200 bg-brand-50 px-4 text-sm font-semibold text-brand-700 transition hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-brand-300/30 dark:bg-brand-500/10 dark:text-brand-100 dark:hover:bg-brand-500/20"
                 >
-                  {isScanning ? "Scanning proof..." : "Scan with AI"}
+                  {isScanning ? "Scanning proof..." : "Re-scan AI extraction"}
                 </button>
                 </div>
               </div>
 
               <div className="mt-4 rounded-lg border border-dashed border-gray-300 bg-gray-50 p-3 dark:border-white/15 dark:bg-black/20">
                 <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300">
-                  Selected file
+                  Selected files
                 </p>
-                <p className="mt-1 break-all text-sm font-medium text-gray-800 dark:text-gray-100">
-                  {selectedFileName || "No screenshot selected yet"}
-                </p>
+                {selectedFileNames.length ? (
+                  <div className="mt-2 space-y-1">
+                    {selectedFileNames.map((name) => (
+                      <p key={name} className="break-all text-sm font-medium text-gray-800 dark:text-gray-100">
+                        {name}
+                      </p>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-1 text-sm font-medium text-gray-800 dark:text-gray-100">
+                    No proof file selected yet
+                  </p>
+                )}
               </div>
 
-              {previewUrl ? (
+              {previewProof?.previewUrl ? (
                 <div className="mt-4 overflow-hidden rounded-xl border border-gray-200 bg-gray-950/5 dark:border-white/15 dark:bg-black/20">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={previewUrl}
+                    src={previewProof.previewUrl}
                     alt="Selected deposit proof preview"
                     className="max-h-[360px] w-full object-contain"
                   />
                 </div>
               ) : (
                 <div className="mt-4 flex min-h-56 items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50 text-center text-sm text-gray-500 dark:border-white/15 dark:bg-black/20 dark:text-gray-300">
-                  Screenshot preview will appear here.
+                  Image preview will appear here. PDF and text proofs are still scanned.
                 </div>
               )}
             </div>
@@ -308,8 +376,9 @@ export function DepositProofForm({ action }: DepositProofFormProps) {
                   inputMode="numeric"
                   placeholder="Example: 200000"
                   className={fieldClass}
+                  onChange={(event) => updateDefaultAllocation(Number(event.currentTarget.value))}
                 />
-                <p className={hintClass}>Use the amount shown on the proof.</p>
+                <p className={hintClass}>Use the amount shown on the proof. Emergency is auto-filled at 30%.</p>
               </label>
 
               <label className="block">
@@ -324,6 +393,7 @@ export function DepositProofForm({ action }: DepositProofFormProps) {
                   inputMode="numeric"
                   defaultValue="0"
                   className={fieldClass}
+                  onChange={(event) => updateInvestmentBalance(undefined, Number(event.currentTarget.value))}
                 />
               </label>
 
@@ -339,7 +409,9 @@ export function DepositProofForm({ action }: DepositProofFormProps) {
                   inputMode="numeric"
                   placeholder="Usually the remaining amount"
                   className={fieldClass}
+                  readOnly
                 />
+                <p className={hintClass}>Automatically balances after the emergency allocation.</p>
               </label>
 
               <label className="block">

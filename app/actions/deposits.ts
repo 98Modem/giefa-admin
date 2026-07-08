@@ -19,8 +19,27 @@ function assertOk(error: { message: string } | null, action: string) {
   }
 }
 
-function isUploadableImage(file: FormDataEntryValue | null): file is File {
-  return file instanceof File && file.size > 0 && file.type.startsWith("image/");
+function isUploadableProof(file: FormDataEntryValue | null): file is File {
+  if (!(file instanceof File) || file.size <= 0) return false;
+
+  return (
+    file.type.startsWith("image/") ||
+    file.type === "application/pdf" ||
+    file.type === "text/plain" ||
+    /\.pdf$/i.test(file.name) ||
+    /\.txt$/i.test(file.name)
+  );
+}
+
+function getProofFiles(formData: FormData) {
+  const proofFiles = formData.getAll("proofs").filter(isUploadableProof);
+  const legacyProof = formData.get("proof");
+
+  if (proofFiles.length === 0 && isUploadableProof(legacyProof)) {
+    proofFiles.push(legacyProof);
+  }
+
+  return proofFiles.slice(0, 6);
 }
 
 export async function submitDepositProof(formData: FormData) {
@@ -34,7 +53,7 @@ export async function submitDepositProof(formData: FormData) {
   const senderName = getString(formData, "sender_name");
   const extractionNotes = getString(formData, "extraction_notes");
   const extractionConfidence = getNumber(formData, "extraction_confidence");
-  const proof = formData.get("proof");
+  const proofs = getProofFiles(formData);
 
   if (!totalAmount || totalAmount <= 0) {
     throw new Error("Deposit amount is required.");
@@ -68,8 +87,9 @@ export async function submitDepositProof(formData: FormData) {
   }
 
   let proofUrl: string | null = null;
+  const uploadedProofPaths: string[] = [];
 
-  if (isUploadableImage(proof)) {
+  for (const proof of proofs) {
     const extension = proof.name.split(".").pop()?.toLowerCase() || "jpg";
     const path = `${session.user.id}/${Date.now()}-${crypto.randomUUID()}.${extension}`;
     const { error: uploadError } = await supabase.storage
@@ -81,8 +101,15 @@ export async function submitDepositProof(formData: FormData) {
       });
     assertOk(uploadError, "Upload deposit proof");
 
-    proofUrl = path;
+    uploadedProofPaths.push(path);
   }
+
+  proofUrl = uploadedProofPaths[0] ?? null;
+  const proofFileNote =
+    uploadedProofPaths.length > 0
+      ? `Uploaded proof files:\n${uploadedProofPaths.map((path, index) => `${index + 1}. ${path}`).join("\n")}`
+      : "";
+  const extractedText = [extractionNotes, proofFileNote].filter(Boolean).join("\n\n") || null;
 
   const { error } = await supabase.from("deposit_submissions").insert({
     member_id: member.id,
@@ -97,7 +124,7 @@ export async function submitDepositProof(formData: FormData) {
       [member.first_name, member.last_name].filter(Boolean).join(" ") ||
       null,
     proof_url: proofUrl,
-    extracted_text: extractionNotes || null,
+    extracted_text: extractedText,
     confidence:
       extractionConfidence >= 0 && extractionConfidence <= 1
         ? extractionConfidence

@@ -43,6 +43,9 @@ const ALL_ROLES: Role[] = [
   "member",
 ];
 
+const ADMIN_CHAIRMAN_ROLES: Role[] = ["admin", "chairman"];
+const FINANCE_LEADERSHIP_ROLES: Role[] = ["treasurer", "chairman", "admin"];
+
 /** --------------------
  * Sidebar Menu Config
  -------------------- */
@@ -113,7 +116,7 @@ export const SIDEBAR_MENU: SidebarItem[] = [
     key: "treasurer-funds",
     title: "Member Funds",
     icon: ClipboardDocumentListIcon,
-    roles: ["treasurer", "admin"],
+    roles: FINANCE_LEADERSHIP_ROLES,
     subMenu: [
       {
         title: "Pending Requests",
@@ -129,7 +132,7 @@ export const SIDEBAR_MENU: SidebarItem[] = [
     key: "finance",
     title: "Finance",
     icon: BanknotesIcon,
-    roles: ["treasurer", "admin"],
+    roles: FINANCE_LEADERSHIP_ROLES,
     subMenu: [
       {
         title: "Deposit Reviews",
@@ -193,7 +196,7 @@ export const SIDEBAR_MENU: SidebarItem[] = [
     key: "chairman-finance",
     title: "Finance Overview",
     icon: ChartBarIcon,
-    roles: ["chairman", "admin"],
+    roles: ADMIN_CHAIRMAN_ROLES,
     subMenu: [
       {
         title: "Overview",
@@ -209,7 +212,7 @@ export const SIDEBAR_MENU: SidebarItem[] = [
     key: "governance",
     title: "Governance",
     icon: ShieldCheckIcon,
-    roles: ["chairman", "admin"],
+    roles: ADMIN_CHAIRMAN_ROLES,
     subMenu: [
       {
         title: "Activity Logs",
@@ -223,13 +226,13 @@ export const SIDEBAR_MENU: SidebarItem[] = [
   },
 
   /* =====================
-     ADMIN
+     SYSTEM OVERSIGHT
   ===================== */
   {
     key: "system",
     title: "System",
     icon: Cog6ToothIcon,
-    roles: ["admin"],
+    roles: ADMIN_CHAIRMAN_ROLES,
     subMenu: [
       {
         title: "Users & Roles",

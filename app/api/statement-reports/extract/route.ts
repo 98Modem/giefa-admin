@@ -202,8 +202,12 @@ export async function POST(request: Request) {
     .eq("auth_user_id", session.user.id)
     .maybeSingle<{ role: string; status: string }>();
 
-  if (!actor || actor.status !== "approved" || !["treasurer", "admin"].includes(actor.role)) {
-    return jsonError("Only treasurer or admin can extract finance statements.", 403);
+  if (
+    !actor ||
+    actor.status !== "approved" ||
+    !["treasurer", "chairman", "admin"].includes(actor.role)
+  ) {
+    return jsonError("Only treasurer, chairman, or admin can extract finance statements.", 403);
   }
 
   const formData = await request.formData();

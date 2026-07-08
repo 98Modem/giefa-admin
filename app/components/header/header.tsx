@@ -25,6 +25,7 @@ import {
 import { saveLocalPreferences } from "@/app/components/theme/ThemeProvider";
 import { SIDEBAR_MENU } from "@/app/components/sidebar/sidebar.config";
 import { Role } from "@/app/employee_type/roles";
+import { GiefaAssistant } from "@/app/components/assistant/GiefaAssistant";
 
 type HeaderMember = {
   id: string;
@@ -819,6 +820,8 @@ export function Header() {
         </div>
 
         <div className="ml-auto flex items-center gap-3">
+          <GiefaAssistant destinations={searchDestinations} />
+
           <div
             ref={notificationRef}
             className="relative"

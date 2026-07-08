@@ -72,7 +72,10 @@ export default async function StatementReportsPage() {
       )
     : [];
   const submissionLookup = new Map(approvedSubmissions.map((submission) => [submission.id, submission]));
-  const canRequestEdit = currentMember?.role === "treasurer" || currentMember?.role === "admin";
+  const canRequestEdit =
+    currentMember?.role === "treasurer" ||
+    currentMember?.role === "chairman" ||
+    currentMember?.role === "admin";
   const canApproveEdit = currentMember?.role === "chairman" || currentMember?.role === "admin";
 
   await Promise.all(

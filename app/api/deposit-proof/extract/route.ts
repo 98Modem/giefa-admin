@@ -36,8 +36,47 @@ type GoogleVisionResult = {
   error?: { message?: string; code?: number };
 };
 
+type PreparedProof = {
+  name: string;
+  type: string;
+  base64Image?: string;
+  text?: string;
+};
+
+type OpenAIExtractionInput = {
+  images: Array<{ name: string; type: string; base64: string }>;
+  textBlocks: Array<{ name: string; text: string }>;
+};
+
 function jsonError(message: string, status = 400) {
   return NextResponse.json({ error: message, extraction: EMPTY_EXTRACTION }, { status });
+}
+
+function allocateAmounts(amount: number | null) {
+  if (!amount || amount <= 0) {
+    return { emergency_amount: null, investment_amount: null };
+  }
+
+  const emergencyAmount = Math.round(amount * 0.3);
+  return {
+    emergency_amount: emergencyAmount,
+    investment_amount: amount - emergencyAmount,
+  };
+}
+
+function confidenceFromFields(foundFields: number, hasAmount: boolean, sourceCount = 1) {
+  if (!hasAmount) return 0.35;
+
+  const base =
+    foundFields >= 4
+      ? 0.96
+      : foundFields === 3
+        ? 0.86
+        : foundFields === 2
+          ? 0.72
+          : 0.55;
+
+  return Math.min(0.98, base + Math.min(0.02, (sourceCount - 1) * 0.01));
 }
 
 function getErrorMessage(result: unknown) {
@@ -141,7 +180,94 @@ function extractGoogleVisionText(result: GoogleVisionResult) {
   ).trim();
 }
 
+function cleanLines(text: string) {
+  return text
+    .split(/\r?\n/)
+    .map((line) => line.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+}
+
+const knownDepositLabels = [
+  /transaction\s+reference/i,
+  /transaction\s+name/i,
+  /transaction\s+date/i,
+  /sender\s+name/i,
+  /from\s+account\s+number/i,
+  /debit\s+amount/i,
+  /transaction\s+amount/i,
+  /beneficiary\s+name/i,
+  /purpose\s+of\s+transaction/i,
+  /beneficiary\s+account\s+number/i,
+  /target\s+currency/i,
+  /beneficiary\s+bank\s+clearing\s+code/i,
+  /bank\s+name/i,
+  /narration/i,
+  /fee/i,
+  /reference|ref\.?|confirmation|receipt/i,
+  /sender|from|paid\s+by/i,
+  /amount|total|paid|sent|deposit|payment|ugx/i,
+];
+
+function isDepositLabel(line: string) {
+  return knownDepositLabels.some((label) => label.test(line));
+}
+
+function extractInlineValue(line: string, label: RegExp) {
+  const match = line.match(label);
+  if (!match || match.index === undefined) return "";
+
+  return line
+    .slice(match.index + match[0].length)
+    .replace(/^(\s*(no\.?|number|id|ugx))?\s*[:#-]?\s*/i, "")
+    .trim();
+}
+
+function readDepositField(text: string, labels: RegExp[]) {
+  const lines = cleanLines(text);
+  const labelEntries = lines
+    .map((line, index) => ({ line, index, label: labels.find((entry) => entry.test(line)) }))
+    .filter((entry): entry is { line: string; index: number; label: RegExp } => Boolean(entry.label));
+
+  for (const entry of labelEntries) {
+    const inlineValue = extractInlineValue(entry.line, entry.label);
+    if (inlineValue && !isDepositLabel(inlineValue)) return inlineValue;
+
+    const nextLine = lines[entry.index + 1];
+    if (nextLine && !isDepositLabel(nextLine)) return nextLine;
+  }
+
+  const allLabelEntries = lines
+    .map((line, index) => ({ line, index }))
+    .filter((entry) => isDepositLabel(entry.line));
+  const allValues = lines.filter((line) => !isDepositLabel(line));
+
+  if (allLabelEntries.length > 0 && allValues.length >= allLabelEntries.length) {
+    const targetIndex = allLabelEntries.findIndex((entry) =>
+      labels.some((label) => label.test(entry.line))
+    );
+    if (targetIndex >= 0) return allValues[targetIndex] || null;
+  }
+
+  return null;
+}
+
+function parseMoneyValue(value: string | null) {
+  if (!value) return null;
+  const matches = [...value.matchAll(/(?:UGX|Ugx|ugx)?\s*([0-9]{1,3}(?:[,.\s][0-9]{3})+|[0-9]{4,})(?:\.\d{1,2})?/g)];
+  const candidates = matches
+    .map((match) => Number(match[1].replace(/[,\s]/g, "")))
+    .filter((amount) => Number.isFinite(amount) && amount >= 1000);
+
+  return candidates[0] ?? null;
+}
+
 function parseAmount(text: string) {
+  const preferredAmount =
+    parseMoneyValue(readDepositField(text, [/transaction\s+amount/i])) ??
+    parseMoneyValue(readDepositField(text, [/debit\s+amount/i]));
+
+  if (preferredAmount) return preferredAmount;
+
   const amountLines = text
     .split(/\r?\n/)
     .filter((line) => /(amount|total|paid|sent|deposit|payment|ugx)/i.test(line));
@@ -160,20 +286,28 @@ function toIsoDate(value: Date) {
 }
 
 function parseDate(text: string) {
-  const numericDate = text.match(/\b(20\d{2})[-/](0?[1-9]|1[0-2])[-/](0?[1-9]|[12]\d|3[01])\b/);
+  const fieldDate = readDepositField(text, [/transaction\s+date/i, /deposit\s+date/i, /date/i]);
+  const dateSource = fieldDate ? `${fieldDate}\n${text}` : text;
+  const numericDate = dateSource.match(/\b(20\d{2})[-/](0?[1-9]|1[0-2])[-/](0?[1-9]|[12]\d|3[01])\b/);
   if (numericDate) {
     const [, year, month, day] = numericDate;
     return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
   }
 
-  const dayMonthYear = text.match(
+  const ugandaNumericDate = dateSource.match(/\b(0?[1-9]|[12]\d|3[01])[-/](0?[1-9]|1[0-2])[-/](20\d{2})\b/);
+  if (ugandaNumericDate) {
+    const [, day, month, year] = ugandaNumericDate;
+    return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  }
+
+  const dayMonthYear = dateSource.match(
     /\b(0?[1-9]|[12]\d|3[01])\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*,?\s+(20\d{2})\b/i
   );
   if (dayMonthYear) {
     return toIsoDate(new Date(`${dayMonthYear[1]} ${dayMonthYear[2]} ${dayMonthYear[3]}`));
   }
 
-  const monthDayYear = text.match(
+  const monthDayYear = dateSource.match(
     /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*\s+(0?[1-9]|[12]\d|3[01]),?\s+(20\d{2})\b/i
   );
   if (monthDayYear) {
@@ -184,41 +318,57 @@ function parseDate(text: string) {
 }
 
 function parseReference(text: string) {
+  const fieldReference = readDepositField(text, [
+    /transaction\s+reference/i,
+    /reference\s*(no\.?|number|id)?/i,
+    /confirmation\s*(no\.?|number|id)?/i,
+    /receipt\s*(no\.?|number|id)?/i,
+  ]);
+  if (fieldReference && !isDepositLabel(fieldReference)) return fieldReference;
+
   const line = text
     .split(/\r?\n/)
-    .find((entry) => /(reference|ref\.?|transaction|confirmation|receipt)/i.test(entry));
+    .find((entry) => /(reference|ref\.?|confirmation|receipt)/i.test(entry));
   if (!line) return null;
 
   return (
     line
-      .replace(/^(reference|ref\.?|transaction|confirmation|receipt)(\s*(no\.?|number|id))?\s*[:#-]?\s*/i, "")
+      .replace(/^(transaction\s+reference|reference|ref\.?|transaction|confirmation|receipt)(\s*(no\.?|number|id))?\s*[:#-]?\s*/i, "")
       .trim() || line.trim()
   );
 }
 
 function parseSenderName(text: string) {
-  const lines = text
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-  const senderIndex = lines.findIndex((line) => /(sender|from|paid by)/i.test(line));
-  const candidate = senderIndex >= 0 ? lines[senderIndex + 1] : lines[0];
+  const fieldSender = readDepositField(text, [/sender\s+name/i, /^sender\b/i, /^paid\s+by\b/i]);
+  if (fieldSender && !isDepositLabel(fieldSender) && fieldSender.length <= 80) {
+    return fieldSender;
+  }
 
-  if (!candidate || /recipient|payment|details|bank|reference|amount|submitted/i.test(candidate)) {
+  const lines = cleanLines(text);
+  const senderIndex = lines.findIndex((line) => /(sender|from|paid by)/i.test(line));
+  const senderLine = senderIndex >= 0 ? lines[senderIndex] : "";
+  const directCandidate = senderLine
+    .replace(/^(sender\s+name|sender|from|paid by)\s*[:#-]?\s*/i, "")
+    .trim();
+  const candidate =
+    directCandidate && directCandidate !== senderLine ? directCandidate : senderIndex >= 0 ? lines[senderIndex + 1] : lines[0];
+
+  if (!candidate || /recipient|payment|details|bank|reference|amount|submitted|account number/i.test(candidate)) {
     return null;
   }
 
   return candidate.length > 80 ? null : candidate;
 }
 
-function parseGoogleVisionExtraction(text: string): DepositExtraction {
+function parseGoogleVisionExtraction(text: string, sourceCount = 1): DepositExtraction {
   const amount = parseAmount(text);
   const depositDate = parseDate(text);
   const contributionMonth = depositDate ? depositDate.slice(0, 7) : null;
   const bankReference = parseReference(text);
   const senderName = parseSenderName(text);
   const foundFields = [amount, depositDate, bankReference, senderName].filter(Boolean).length;
-  const confidence = Math.min(0.92, Math.max(0.25, foundFields / 4));
+  const confidence = confidenceFromFields(foundFields, Boolean(amount), sourceCount);
+  const allocation = allocateAmounts(amount);
 
   return {
     amount,
@@ -226,11 +376,10 @@ function parseGoogleVisionExtraction(text: string): DepositExtraction {
     contribution_month: contributionMonth,
     bank_reference: bankReference,
     sender_name: senderName,
-    emergency_amount: 0,
-    investment_amount: amount,
+    ...allocation,
     confidence,
-    needs_review: true,
-    notes: `Google Vision OCR extracted these suggestions. Review before submitting.\n\nOCR text:\n${text.slice(0, 1200)}`,
+    needs_review: foundFields < 4,
+    notes: `OCR extracted these suggestions from ${sourceCount} proof file${sourceCount === 1 ? "" : "s"}. Review before submitting.\n\nExtracted text:\n${text.slice(0, 1800)}`,
   };
 }
 
@@ -244,9 +393,11 @@ function normalizeExtraction(value: unknown): DepositExtraction {
   const emergencyAmount = Number(record.emergency_amount);
   const investmentAmount = Number(record.investment_amount);
   const confidence = Number(record.confidence);
+  const normalizedAmount = Number.isFinite(amount) && amount > 0 ? Math.round(amount) : null;
+  const allocation = allocateAmounts(normalizedAmount);
 
   return {
-    amount: Number.isFinite(amount) && amount > 0 ? Math.round(amount) : null,
+    amount: normalizedAmount,
     deposit_date:
       typeof record.deposit_date === "string" && record.deposit_date
         ? record.deposit_date
@@ -266,11 +417,11 @@ function normalizeExtraction(value: unknown): DepositExtraction {
     emergency_amount:
       Number.isFinite(emergencyAmount) && emergencyAmount >= 0
         ? Math.round(emergencyAmount)
-        : null,
+        : allocation.emergency_amount,
     investment_amount:
       Number.isFinite(investmentAmount) && investmentAmount >= 0
         ? Math.round(investmentAmount)
-        : null,
+        : allocation.investment_amount,
     confidence:
       Number.isFinite(confidence) && confidence >= 0 && confidence <= 1
         ? confidence
@@ -283,7 +434,7 @@ function normalizeExtraction(value: unknown): DepositExtraction {
   };
 }
 
-async function extractWithOpenAI(imageUrl: string) {
+async function extractWithOpenAI(input: OpenAIExtractionInput) {
   const apiKey = process.env.OPENAI_API_KEY;
 
   if (!apiKey) {
@@ -292,6 +443,31 @@ async function extractWithOpenAI(imageUrl: string) {
       503
     );
   }
+
+  const content: Array<
+    | { type: "input_text"; text: string }
+    | { type: "input_image"; image_url: string }
+  > = [
+    {
+      type: "input_text",
+      text:
+        "Extract deposit proof details for a Ugandan savings association. The user may upload one or more screenshots, PDFs, or text files for the same deposit evidence. Use the clearest value across all files. Read Ugandan date formats such as DD/MM/YYYY. Return ISO date format YYYY-MM-DD. Use contribution_month as YYYY-MM when a month is visible or can be derived from the deposit date. Amounts must be numeric UGX values without commas. Default emergency_amount to exactly 30% of the total amount, rounded to the nearest UGX, and investment_amount to the remaining balance unless the proof explicitly shows a different association-approved split. Be confident when amount, date, reference, and sender are readable; mark needs_review true when any critical field is missing or uncertain. Return concise notes explaining what was read.",
+    },
+  ];
+
+  input.textBlocks.forEach((block) => {
+    content.push({
+      type: "input_text",
+      text: `Text extracted from ${block.name}:\n${block.text.slice(0, 6000)}`,
+    });
+  });
+
+  input.images.forEach((image) => {
+    content.push({
+      type: "input_image",
+      image_url: `data:${image.type};base64,${image.base64}`,
+    });
+  });
 
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
@@ -304,17 +480,7 @@ async function extractWithOpenAI(imageUrl: string) {
       input: [
         {
           role: "user",
-          content: [
-            {
-              type: "input_text",
-              text:
-                "Extract deposit proof details for a Ugandan savings association. Return only fields visible or strongly implied by the image. Use ISO date format YYYY-MM-DD. Use contribution_month as YYYY-MM when a month is visible or can be derived from the deposit date. Amounts must be numeric UGX values without commas. If the split is not visible, set emergency_amount to 0 and investment_amount to the total amount. Mark needs_review true unless every critical field is clear.",
-            },
-            {
-              type: "input_image",
-              image_url: imageUrl,
-            },
-          ],
+          content,
         },
       ],
       text: {
@@ -372,14 +538,11 @@ async function extractWithOpenAI(imageUrl: string) {
   }
 }
 
-async function extractWithGoogleVision(base64Image: string) {
+async function extractGoogleVisionTextFromImage(base64Image: string) {
   const apiKey = process.env.GOOGLE_CLOUD_VISION_API_KEY;
 
   if (!apiKey) {
-    return jsonError(
-      "GOOGLE_CLOUD_VISION_API_KEY is not configured. Add it to .env.local to enable Google Vision OCR.",
-      503
-    );
+    throw new Error("GOOGLE_CLOUD_VISION_API_KEY is not configured. Add it to .env.local to enable Google Vision OCR.");
   }
 
   const response = await fetch(
@@ -401,19 +564,80 @@ async function extractWithGoogleVision(base64Image: string) {
   const result = (await response.json()) as GoogleVisionResult;
 
   if (!response.ok || result.responses?.[0]?.error) {
-    return jsonError(friendlyGoogleVisionError(result, response.status), response.status);
+    throw new Error(friendlyGoogleVisionError(result, response.status));
   }
 
   const text = extractGoogleVisionText(result);
 
   if (!text) {
+    throw new Error("Google Vision did not find readable text in this image. Try a clearer screenshot or enter the details manually.");
+  }
+
+  return text;
+}
+
+async function extractWithGoogleVision(input: OpenAIExtractionInput) {
+  const textBlocks = [...input.textBlocks];
+
+  for (const image of input.images) {
+    textBlocks.push({
+      name: image.name,
+      text: await extractGoogleVisionTextFromImage(image.base64),
+    });
+  }
+
+  const combinedText = textBlocks.map((block) => `--- ${block.name} ---\n${block.text}`).join("\n\n");
+
+  if (!combinedText.trim()) {
     return jsonError(
-      "Google Vision did not find readable text in this image. Try a clearer screenshot or enter the details manually.",
+      "Google Vision did not find readable text. Try a clearer screenshot or enter the details manually.",
       422
     );
   }
 
-  return NextResponse.json({ extraction: parseGoogleVisionExtraction(text) });
+  return NextResponse.json({ extraction: parseGoogleVisionExtraction(combinedText, textBlocks.length) });
+}
+
+async function extractPdfText(file: File) {
+  const { PDFParse } = await import("pdf-parse");
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const parser = new PDFParse({ data: buffer });
+
+  try {
+    const parsed = await parser.getText();
+    return String(parsed.text || "").trim();
+  } finally {
+    await parser.destroy();
+  }
+}
+
+async function prepareProof(file: File): Promise<PreparedProof> {
+  if (file.type.startsWith("image/")) {
+    const buffer = Buffer.from(await file.arrayBuffer());
+    return {
+      name: file.name,
+      type: file.type,
+      base64Image: buffer.toString("base64"),
+    };
+  }
+
+  if (file.type === "application/pdf" || /\.pdf$/i.test(file.name)) {
+    return {
+      name: file.name,
+      type: file.type || "application/pdf",
+      text: await extractPdfText(file),
+    };
+  }
+
+  if (file.type === "text/plain" || /\.txt$/i.test(file.name)) {
+    return {
+      name: file.name,
+      type: file.type || "text/plain",
+      text: (await file.text()).trim(),
+    };
+  }
+
+  throw new Error("Only images, PDFs, and text files can be scanned.");
 }
 
 export async function POST(request: Request) {
@@ -438,28 +662,55 @@ export async function POST(request: Request) {
   }
 
   const formData = await request.formData();
-  const proof = formData.get("proof");
+  const proofEntries = formData.getAll("proofs");
+  const legacyProof = formData.get("proof");
+  const proofs = [
+    ...proofEntries,
+    ...(proofEntries.length === 0 && legacyProof ? [legacyProof] : []),
+  ].filter((entry): entry is File => entry instanceof File && entry.size > 0);
 
-  if (!(proof instanceof File) || proof.size === 0) {
-    return jsonError("Upload a deposit proof image before scanning.");
+  if (!proofs.length) {
+    return jsonError("Upload at least one deposit proof file before scanning.");
   }
 
-  if (!proof.type.startsWith("image/")) {
-    return jsonError("The proof must be an image file.");
+  if (proofs.length > 6) {
+    return jsonError("Upload up to 6 proof files at a time.");
   }
 
-  if (proof.size > 5 * 1024 * 1024) {
-    return jsonError("The proof image must be 5MB or smaller.");
+  if (proofs.some((proof) => proof.size > 8 * 1024 * 1024)) {
+    return jsonError("Each proof file must be 8MB or smaller.");
   }
 
-  const buffer = Buffer.from(await proof.arrayBuffer());
-  const base64Image = buffer.toString("base64");
+  const preparedProofs = await Promise.all(proofs.map((proof) => prepareProof(proof)));
+  const extractionInput: OpenAIExtractionInput = {
+    images: preparedProofs
+      .filter((proof) => proof.base64Image)
+      .map((proof) => ({
+        name: proof.name,
+        type: proof.type,
+        base64: proof.base64Image as string,
+      })),
+    textBlocks: preparedProofs
+      .filter((proof) => proof.text)
+      .map((proof) => ({
+        name: proof.name,
+        text: proof.text as string,
+      })),
+  };
+
+  if (!extractionInput.images.length && !extractionInput.textBlocks.some((block) => block.text)) {
+    return jsonError("No readable text was found in the uploaded proof files.", 422);
+  }
+
   const provider = process.env.GIEFA_OCR_PROVIDER || "openai";
 
-  if (provider === "google-vision") {
-    return extractWithGoogleVision(base64Image);
-  }
+  try {
+    if (provider === "google-vision") {
+      return extractWithGoogleVision(extractionInput);
+    }
 
-  const imageUrl = `data:${proof.type};base64,${base64Image}`;
-  return extractWithOpenAI(imageUrl);
+    return extractWithOpenAI(extractionInput);
+  } catch (error) {
+    return jsonError(error instanceof Error ? error.message : "AI extraction failed.", 502);
+  }
 }
