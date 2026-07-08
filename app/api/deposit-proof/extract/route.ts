@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/app/lib/supabase/server";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 type DepositExtraction = {
   amount: number | null;
   deposit_date: string | null;
@@ -598,17 +601,11 @@ async function extractWithGoogleVision(input: OpenAIExtractionInput) {
   return NextResponse.json({ extraction: parseGoogleVisionExtraction(combinedText, textBlocks.length) });
 }
 
-async function extractPdfText(file: File) {
-  const { PDFParse } = await import("pdf-parse");
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const parser = new PDFParse({ data: buffer });
-
-  try {
-    const parsed = await parser.getText();
-    return String(parsed.text || "").trim();
-  } finally {
-    await parser.destroy();
-  }
+async function extractPdfText(file: File): Promise<string> {
+  await file.arrayBuffer();
+  throw new Error(
+    "PDF deposit proof scanning is not available in production yet. Please upload a clear screenshot/image of the payment proof, or paste the PDF text into a .txt file and upload it."
+  );
 }
 
 async function prepareProof(file: File): Promise<PreparedProof> {

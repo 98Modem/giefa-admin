@@ -1,4 +1,6 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# GIEFA Dashboard
+
+Graduate Investment and Emergency Fund Association Dashboard.
 
 ## Getting Started
 
@@ -16,21 +18,34 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Production is deployed with Vercel, Supabase, Cloudflare DNS, and the `giefa.org` domain.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Production Deployment
 
-## Learn More
+Use Vercel for the Next.js app and API routes. DreamHost remains the domain registrar, while Cloudflare manages DNS.
 
-To learn more about Next.js, take a look at the following resources:
+Required Vercel environment variables are listed in `.env.production.example`.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Important production settings:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- Set `NEXT_PUBLIC_SITE_URL=https://giefa.org` in Vercel.
+- Keep `.env.local` out of GitHub.
+- Add both apex and www URLs in Supabase Auth URL Configuration:
+  - `https://giefa.org/auth/callback`
+  - `https://giefa.org/reset-password`
+  - `https://www.giefa.org/auth/callback`
+  - `https://www.giefa.org/reset-password`
+  - `http://localhost:3000/auth/callback`
+  - `http://localhost:3000/reset-password`
 
-## Deploy on Vercel
+Future releases:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+npm run lint
+npm run build
+git add .
+git commit -m "Describe the update"
+git push origin main
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Vercel automatically builds and deploys the pushed `main` branch.

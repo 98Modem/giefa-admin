@@ -4,6 +4,13 @@ import { useState } from "react";
 import Link from "next/link";
 import { supabaseBrowser } from "@/app/lib/supabase/client";
 
+function getResetRedirectUrl() {
+  const configuredUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  const origin = configuredUrl || window.location.origin;
+
+  return `${origin.replace(/\/$/, "")}/reset-password`;
+}
+
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
@@ -21,7 +28,7 @@ export default function ForgotPasswordPage() {
 
     const { error: resetError } =
       await supabaseBrowser.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: getResetRedirectUrl(),
       });
 
     if (resetError) {
