@@ -382,7 +382,38 @@ export default async function FinancialReportsPage() {
               Report Archive
             </h2>
           </div>
-          <div className="overflow-x-auto">
+          <div className="grid gap-3 p-3 sm:hidden">
+            {reports.map((row) => (
+              <article
+                key={row.id}
+                className="rounded-xl border border-gray-200 bg-white/80 p-4 shadow-sm dark:border-white/15 dark:bg-white/5"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <p className="text-lg font-semibold text-gray-950 dark:text-white">
+                    {row.reporting_month}
+                  </p>
+                  <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusTone(row.status)}`}>
+                    {row.status ?? "draft"}
+                  </span>
+                </div>
+                <div className="mt-4 grid gap-3 text-sm">
+                  {[
+                    ["Deposits", money(row.approved_member_deposits)],
+                    ["Interest", money(row.calculated_interest_amount ?? row.manual_interest_amount ?? row.unmatched_deposits)],
+                    ["Closing", money(row.closing_balance)],
+                    ["Exceptions", String(row.exception_count ?? 0)],
+                  ].map(([label, value]) => (
+                    <div key={label} className="flex items-start justify-between gap-4 border-t border-gray-100 pt-3 dark:border-white/10">
+                      <span className="text-gray-500 dark:text-gray-300">{label}</span>
+                      <span className="text-right font-semibold text-gray-950 dark:text-white">{value}</span>
+                    </div>
+                  ))}
+                </div>
+              </article>
+            ))}
+          </div>
+
+          <div className="hidden overflow-x-auto sm:block">
             <table className="min-w-full text-left text-sm">
               <thead className="bg-gray-50 text-xs uppercase text-gray-500 dark:bg-white/5 dark:text-gray-200">
                 <tr>
@@ -452,7 +483,55 @@ function ReportTable({
           {empty}
         </p>
       ) : (
-        <div className="overflow-x-auto">
+        <>
+        <div className="grid gap-3 p-3 sm:hidden print:hidden">
+          {rows.map((row, rowIndex) => (
+            <article
+              key={`${title}-mobile-${rowIndex}`}
+              className="rounded-xl border border-gray-200 bg-white/80 p-4 shadow-sm dark:border-white/15 dark:bg-white/5"
+            >
+              <div className="space-y-3">
+                {row.map((cell, cellIndex) => (
+                  <div
+                    key={`${title}-mobile-${rowIndex}-${cellIndex}`}
+                    className="grid grid-cols-[minmax(6.75rem,0.42fr)_1fr] gap-3 border-b border-gray-100 pb-3 last:border-b-0 last:pb-0 dark:border-white/10"
+                  >
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300">
+                      {columns[cellIndex] ?? "Value"}
+                    </p>
+                    <p className="min-w-0 break-words text-sm font-semibold text-gray-950 dark:text-white">
+                      {cell}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </article>
+          ))}
+          {footer && (
+            <article className="rounded-xl border border-brand-200 bg-brand-50/80 p-4 shadow-sm dark:border-brand-300/30 dark:bg-brand-500/10">
+              <p className="text-xs font-semibold uppercase tracking-wide text-brand-700 dark:text-brand-100">
+                Total
+              </p>
+              <div className="mt-3 space-y-3">
+                {footer.map((cell, index) => (
+                  <div
+                    key={`${title}-mobile-footer-${index}`}
+                    className="grid grid-cols-[minmax(6.75rem,0.42fr)_1fr] gap-3"
+                  >
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300">
+                      {columns[index] ?? "Value"}
+                    </p>
+                    <p className="min-w-0 break-words text-sm font-semibold text-gray-950 dark:text-white">
+                      {cell}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </article>
+          )}
+        </div>
+
+        <div className="hidden overflow-x-auto sm:block print:block">
           <table className="min-w-full text-left text-sm">
             <thead className="bg-gray-50 text-xs uppercase text-gray-500 dark:bg-white/5 dark:text-gray-200 print:bg-gray-100 print:text-gray-700">
               <tr>
@@ -490,6 +569,7 @@ function ReportTable({
             )}
           </table>
         </div>
+        </>
       )}
     </section>
   );

@@ -46,15 +46,15 @@ export function FeaturePage({
   table,
 }: FeaturePageProps) {
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
-      <div className="flex flex-col gap-4 border-b border-gray-200 pb-5 dark:border-white/20 lg:flex-row lg:items-end lg:justify-between">
+    <div className="mx-auto max-w-7xl space-y-4 sm:space-y-6">
+      <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface)] p-4 shadow-sm sm:p-5 lg:flex lg:items-end lg:justify-between">
         <div>
           {eyebrow && (
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-300">
               {eyebrow}
             </p>
           )}
-          <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
+          <h1 className="text-2xl font-semibold leading-tight text-gray-900 dark:text-white">
             {title}
           </h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600 dark:text-gray-200">
@@ -63,12 +63,12 @@ export function FeaturePage({
         </div>
 
         {(primaryAction || secondaryActions.length > 0) && (
-          <div className="flex flex-wrap gap-2">
+          <div className="mt-4 grid gap-2 sm:flex sm:flex-wrap lg:mt-0">
             {secondaryActions.map((action) => (
               <Link
                 key={action.href}
                 href={action.href}
-                className="rounded-lg border bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-white/15 dark:bg-white/10 dark:text-gray-100 dark:hover:bg-white/15"
+                className="rounded-lg border bg-white px-4 py-2.5 text-center text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-white/15 dark:bg-white/10 dark:text-gray-100 dark:hover:bg-white/15"
               >
                 {action.label}
               </Link>
@@ -76,7 +76,7 @@ export function FeaturePage({
             {primaryAction && (
               <Link
                 href={primaryAction.href}
-                className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white hover:bg-brand-600"
+                className="rounded-lg bg-brand-500 px-4 py-2.5 text-center text-sm font-medium text-white hover:bg-brand-600"
               >
                 {primaryAction.label}
               </Link>
@@ -86,16 +86,16 @@ export function FeaturePage({
       </div>
 
       {metrics.length > 0 && (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
           {metrics.map((metric) => (
             <div
               key={metric.label}
-              className="rounded-lg border bg-white p-5 shadow-sm"
+              className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] p-4 shadow-sm sm:p-5"
             >
-              <p className="text-sm text-gray-500 dark:text-gray-300">
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-300 sm:text-sm">
                 {metric.label}
               </p>
-              <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">
+              <p className="mt-2 break-words text-xl font-semibold leading-tight text-gray-900 dark:text-white sm:text-2xl">
                 {metric.value}
               </p>
               {metric.detail && (
@@ -109,11 +109,11 @@ export function FeaturePage({
       )}
 
       {sections.length > 0 && (
-        <div className="grid gap-4 lg:grid-cols-3">
+        <div className="grid gap-3 sm:gap-4 lg:grid-cols-3">
           {sections.map((section) => (
             <section
               key={section.title}
-              className="rounded-lg border bg-white p-5 shadow-sm"
+              className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] p-4 shadow-sm sm:p-5"
             >
               <h2 className="text-base font-semibold text-gray-900 dark:text-white">
                 {section.title}
@@ -137,19 +137,45 @@ export function FeaturePage({
       )}
 
       {table && (
-        <section className="overflow-hidden rounded-lg border bg-white shadow-sm">
-          <div className="border-b border-gray-200 px-5 py-4 dark:border-white/15">
+        <section className="overflow-hidden rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface)] shadow-sm">
+          <div className="border-b border-[var(--app-border)] px-4 py-4 sm:px-5">
             <h2 className="text-base font-semibold text-gray-900 dark:text-white">
               Current Records
             </h2>
           </div>
           {table.rows.length === 0 ? (
-            <p className="px-5 py-8 text-sm text-gray-500 dark:text-gray-200">
+            <p className="px-4 py-8 text-sm text-gray-500 dark:text-gray-200 sm:px-5">
               {table.empty ?? "No records found."}
             </p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-left text-sm">
+            <>
+              <div className="grid gap-3 p-3 sm:hidden">
+                {table.rows.map((row, rowIndex) => (
+                  <article
+                    key={rowIndex}
+                    className="rounded-xl border border-[var(--app-border)] bg-white/70 p-4 shadow-sm dark:bg-white/5"
+                  >
+                    <div className="space-y-3">
+                      {row.map((cell, cellIndex) => (
+                        <div
+                          key={cellIndex}
+                          className="grid grid-cols-[minmax(6.5rem,0.42fr)_1fr] gap-3"
+                        >
+                          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300">
+                            {table.columns[cellIndex] ?? "Value"}
+                          </p>
+                          <div className="min-w-0 break-words text-sm font-medium text-gray-900 dark:text-white">
+                            {cell}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </article>
+                ))}
+              </div>
+
+              <div className="hidden overflow-x-auto sm:block">
+                <table className="min-w-full text-left text-sm">
                 <thead className="bg-gray-50 text-xs uppercase text-gray-500 dark:text-gray-200">
                   <tr>
                     {table.columns.map((column) => (
@@ -174,7 +200,8 @@ export function FeaturePage({
                   ))}
                 </tbody>
               </table>
-            </div>
+              </div>
+            </>
           )}
         </section>
       )}

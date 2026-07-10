@@ -71,7 +71,32 @@ export function RequestsTable({ role, memberId }: Props) {
           No fund requests found.
         </div>
       ) : (
-        <div className="overflow-x-auto">
+        <>
+        <div className="grid gap-3 sm:hidden">
+          {data.map((req) => (
+            <article
+              key={req.id}
+              className="rounded-xl border border-gray-200 bg-white/80 p-4 shadow-sm dark:border-white/15 dark:bg-white/5"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300">
+                    Amount
+                  </p>
+                  <p className="mt-1 text-lg font-semibold text-gray-950 dark:text-white">
+                    UGX {req.amount.toLocaleString()}
+                  </p>
+                </div>
+                <StatusBadge status={req.status} />
+              </div>
+              <div className="mt-4 border-t border-gray-100 pt-3 text-sm text-gray-600 dark:border-white/10 dark:text-gray-300">
+                {new Date(req.created_at).toLocaleDateString()}
+              </div>
+            </article>
+          ))}
+        </div>
+
+        <div className="hidden overflow-x-auto sm:block">
           <table className="w-full min-w-[620px] text-sm">
             <thead className="border-y text-left text-xs uppercase tracking-wide text-gray-500 dark:text-gray-300">
               <tr>
@@ -101,6 +126,7 @@ export function RequestsTable({ role, memberId }: Props) {
             </tbody>
           </table>
         </div>
+        </>
       )}
     </div>
   );

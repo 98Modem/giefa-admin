@@ -91,9 +91,88 @@ export default async function StatementReportsPage() {
     })
   );
 
+  function renderReportEditControl(report: (typeof reports)[number]) {
+    const hasOpenEditRequest = editRequests.some(
+      (request) =>
+        request.report_id === report.id &&
+        ["requested", "approved"].includes(request.status ?? "")
+    );
+
+    return (
+      <div className="grid gap-2">
+        {canRequestEdit &&
+          !hasOpenEditRequest &&
+          !["edit_requested", "edit_approved"].includes(report.status ?? "") && (
+            <form action={requestFinanceReportEdit} className="grid gap-2">
+              <input type="hidden" name="report_id" value={report.id} />
+              <input
+                name="reason"
+                placeholder="Why edit this report?"
+                className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 dark:border-white/15 dark:bg-white/10 dark:text-white"
+              />
+              <button className="rounded-lg border border-brand-200 px-3 py-2.5 text-sm font-semibold text-brand-700 hover:bg-brand-50 dark:border-brand-300/30 dark:text-brand-100 dark:hover:bg-brand-500/10">
+                Request edit
+              </button>
+            </form>
+          )}
+        {editRequests
+          .filter((request) => request.report_id === report.id && request.status === "requested")
+          .map((request) =>
+            canApproveEdit ? (
+              <form key={request.id} action={approveFinanceReportEdit} className="grid gap-2">
+                <input type="hidden" name="request_id" value={request.id} />
+                <input
+                  name="chairman_note"
+                  placeholder="Chairman note"
+                  className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 dark:border-white/15 dark:bg-white/10 dark:text-white"
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    name="decision"
+                    value="approve"
+                    className="rounded-lg bg-emerald-600 px-3 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"
+                  >
+                    Approve
+                  </button>
+                  <button
+                    name="decision"
+                    value="reject"
+                    className="rounded-lg border border-rose-200 px-3 py-2.5 text-sm font-semibold text-rose-700 hover:bg-rose-50 dark:border-rose-400/30 dark:text-rose-200 dark:hover:bg-rose-500/10"
+                  >
+                    Reject
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <span key={request.id} className="text-sm font-semibold text-amber-600 dark:text-amber-200">
+                Edit awaiting chairman approval
+              </span>
+            )
+          )}
+        {canRequestEdit &&
+          editRequests
+            .filter((request) => request.report_id === report.id && request.status === "approved")
+            .map((request) => (
+              <ReportEditDialog
+                key={request.id}
+                requestId={request.id}
+                reportId={report.id}
+                reportingMonth={report.reporting_month}
+                openingBalance={report.opening_balance}
+                closingBalance={report.closing_balance}
+                statementMovement={report.total_deposits}
+                approvedDeposits={report.approved_member_deposits}
+                interestAmount={report.manual_interest_amount ?? report.calculated_interest_amount ?? report.unmatched_deposits}
+                notes={report.notes}
+              />
+            ))}
+      </div>
+    );
+  }
+
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
-      <div className="border-b border-gray-200 pb-5 dark:border-white/20">
+    <div className="mx-auto max-w-7xl space-y-4 sm:space-y-6">
+      <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface)] p-4 shadow-sm sm:p-5">
         <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-300">
           Finance
         </p>
@@ -132,7 +211,7 @@ export default async function StatementReportsPage() {
         </div>
       </section>
 
-      <section className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm dark:border-white/15 dark:bg-white/10">
+      <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-white/15 dark:bg-white/10">
         <div className="border-b border-gray-200 px-5 py-4 dark:border-white/15">
           <h2 className="text-base font-semibold text-gray-900 dark:text-white">
             Monthly Report History
@@ -143,7 +222,68 @@ export default async function StatementReportsPage() {
             No monthly finance reports have been generated yet.
           </p>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="grid gap-3 p-3 sm:hidden">
+            {reports.map((report) => {
+              const statementImport = imports.find((row) => row.id === report.statement_import_id);
+              const signedUrl = statementImport ? statementUrls.get(statementImport.id) : null;
+
+              return (
+                <article
+                  key={report.id}
+                  className="rounded-xl border border-gray-200 bg-white/80 p-4 shadow-sm dark:border-white/15 dark:bg-white/5"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300">
+                        Month
+                      </p>
+                      <p className="mt-1 text-lg font-semibold text-gray-950 dark:text-white">
+                        {report.reporting_month}
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-brand-100 px-2.5 py-1 text-xs font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-100">
+                      {report.status ?? "draft"}
+                    </span>
+                  </div>
+
+                  <div className="mt-4 grid gap-3 text-sm">
+                    {[
+                      ["Statement movement", money(report.total_deposits)],
+                      ["Approved deposits", money(report.approved_member_deposits)],
+                      ["Interest / variance", money(report.calculated_interest_amount ?? report.unmatched_deposits)],
+                      ["Closing", money(report.closing_balance)],
+                    ].map(([label, value]) => (
+                      <div key={label} className="flex items-start justify-between gap-4 border-t border-gray-100 pt-3 dark:border-white/10">
+                        <span className="text-gray-500 dark:text-gray-300">{label}</span>
+                        <span className="text-right font-semibold text-gray-950 dark:text-white">{value}</span>
+                      </div>
+                    ))}
+                    {report.variance_status === "deposit_exceeds_statement" && (
+                      <p className="rounded-lg bg-rose-50 p-3 text-xs font-semibold text-rose-700 dark:bg-rose-500/10 dark:text-rose-100">
+                        Approved deposits exceed statement movement
+                      </p>
+                    )}
+                    {signedUrl ? (
+                      <a
+                        href={signedUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-lg border border-brand-200 px-3 py-2 text-center text-sm font-semibold text-brand-700 hover:bg-brand-50 dark:border-brand-300/30 dark:text-brand-100 dark:hover:bg-brand-500/10"
+                      >
+                        View statement
+                      </a>
+                    ) : (
+                      <span className="text-sm text-gray-500 dark:text-gray-300">No file</span>
+                    )}
+                    {renderReportEditControl(report)}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+
+          <div className="hidden overflow-x-auto sm:block">
             <table className="min-w-full text-left text-sm">
               <thead className="bg-gray-50 text-xs uppercase text-gray-500 dark:bg-white/5 dark:text-gray-200">
                 <tr>
@@ -158,11 +298,6 @@ export default async function StatementReportsPage() {
                 {reports.map((report) => {
                   const statementImport = imports.find((row) => row.id === report.statement_import_id);
                   const signedUrl = statementImport ? statementUrls.get(statementImport.id) : null;
-                  const hasOpenEditRequest = editRequests.some(
-                    (request) =>
-                      request.report_id === report.id &&
-                      ["requested", "approved"].includes(request.status ?? "")
-                  );
 
                   return (
                     <tr key={report.id}>
@@ -204,72 +339,7 @@ export default async function StatementReportsPage() {
                         {report.status ?? "draft"}
                       </td>
                       <td className="min-w-72 px-5 py-4">
-                        {canRequestEdit &&
-                          !hasOpenEditRequest &&
-                          !["edit_requested", "edit_approved"].includes(report.status ?? "") && (
-                          <form action={requestFinanceReportEdit} className="grid gap-2">
-                            <input type="hidden" name="report_id" value={report.id} />
-                            <input
-                              name="reason"
-                              placeholder="Why edit this report?"
-                              className="h-9 rounded-md border border-gray-200 bg-white px-2 text-xs text-gray-900 dark:border-white/15 dark:bg-white/10 dark:text-white"
-                            />
-                            <button className="rounded-md border border-brand-200 px-3 py-2 text-xs font-semibold text-brand-700 hover:bg-brand-50 dark:border-brand-300/30 dark:text-brand-100 dark:hover:bg-brand-500/10">
-                              Request edit
-                            </button>
-                          </form>
-                        )}
-                        {editRequests
-                          .filter((request) => request.report_id === report.id && request.status === "requested")
-                          .map((request) =>
-                            canApproveEdit ? (
-                              <form key={request.id} action={approveFinanceReportEdit} className="grid gap-2">
-                                <input type="hidden" name="request_id" value={request.id} />
-                                <input
-                                  name="chairman_note"
-                                  placeholder="Chairman note"
-                                  className="h-9 rounded-md border border-gray-200 bg-white px-2 text-xs text-gray-900 dark:border-white/15 dark:bg-white/10 dark:text-white"
-                                />
-                                <div className="grid grid-cols-2 gap-2">
-                                  <button
-                                    name="decision"
-                                    value="approve"
-                                    className="rounded-md bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700"
-                                  >
-                                    Approve edit
-                                  </button>
-                                  <button
-                                    name="decision"
-                                    value="reject"
-                                    className="rounded-md border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 dark:border-rose-400/30 dark:text-rose-200 dark:hover:bg-rose-500/10"
-                                  >
-                                    Reject
-                                  </button>
-                                </div>
-                              </form>
-                            ) : (
-                              <span key={request.id} className="text-xs font-semibold text-amber-600 dark:text-amber-200">
-                                Edit awaiting chairman approval
-                              </span>
-                            )
-                          )}
-                        {canRequestEdit &&
-                          editRequests
-                            .filter((request) => request.report_id === report.id && request.status === "approved")
-                            .map((request) => (
-                              <ReportEditDialog
-                                key={request.id}
-                                requestId={request.id}
-                                reportId={report.id}
-                                reportingMonth={report.reporting_month}
-                                openingBalance={report.opening_balance}
-                                closingBalance={report.closing_balance}
-                                statementMovement={report.total_deposits}
-                                approvedDeposits={report.approved_member_deposits}
-                                interestAmount={report.manual_interest_amount ?? report.calculated_interest_amount ?? report.unmatched_deposits}
-                                notes={report.notes}
-                              />
-                            ))}
+                        {renderReportEditControl(report)}
                       </td>
                     </tr>
                   );
@@ -277,6 +347,7 @@ export default async function StatementReportsPage() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </section>
 
@@ -294,7 +365,34 @@ export default async function StatementReportsPage() {
             No allocation rows yet. Generate a report after running the daily weighted interest SQL script.
           </p>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="grid gap-3 p-3 sm:hidden">
+            {latestAllocations.map((allocation) => (
+              <article
+                key={allocation.id}
+                className="rounded-xl border border-gray-200 bg-white/80 p-4 shadow-sm dark:border-white/15 dark:bg-white/5"
+              >
+                <p className="font-semibold text-gray-950 dark:text-white">
+                  {memberName(members[allocation.member_id])}
+                </p>
+                <div className="mt-4 grid gap-3 text-sm">
+                  {[
+                    ["Opening base", money(allocation.opening_investment_balance)],
+                    ["Month deposits", money(allocation.month_investment_deposits)],
+                    ["Weight", `${((allocation.allocation_weight ?? 0) * 100).toFixed(2)}%`],
+                    ["Interest", money(allocation.interest_amount)],
+                  ].map(([label, value]) => (
+                    <div key={label} className="flex items-start justify-between gap-4 border-t border-gray-100 pt-3 dark:border-white/10">
+                      <span className="text-gray-500 dark:text-gray-300">{label}</span>
+                      <span className="text-right font-semibold text-gray-950 dark:text-white">{value}</span>
+                    </div>
+                  ))}
+                </div>
+              </article>
+            ))}
+          </div>
+
+          <div className="hidden overflow-x-auto sm:block">
             <table className="min-w-full text-left text-sm">
               <thead className="bg-gray-50 text-xs uppercase text-gray-500 dark:bg-white/5 dark:text-gray-200">
                 <tr>
@@ -328,6 +426,7 @@ export default async function StatementReportsPage() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </section>
 
@@ -345,7 +444,45 @@ export default async function StatementReportsPage() {
             No pending member deposit proofs for the latest report month.
           </p>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="grid gap-3 p-3 sm:hidden">
+            {pendingSubmissions.map((submission) => (
+              <article
+                key={submission.id}
+                className="rounded-xl border border-gray-200 bg-white/80 p-4 shadow-sm dark:border-white/15 dark:bg-white/5"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-semibold text-gray-950 dark:text-white">
+                      {memberName(members[submission.member_id])}
+                    </p>
+                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-300">
+                      {submission.deposit_date ? dateLabel(submission.deposit_date) : "No date"}
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-500/15 dark:text-amber-100">
+                    {submission.status ?? "submitted"}
+                  </span>
+                </div>
+                <div className="mt-4 grid gap-3 text-sm">
+                  <div className="flex items-start justify-between gap-4 border-t border-gray-100 pt-3 dark:border-white/10">
+                    <span className="text-gray-500 dark:text-gray-300">Amount</span>
+                    <span className="text-right font-semibold text-gray-950 dark:text-white">
+                      {money(submission.amount)}
+                    </span>
+                  </div>
+                  <div className="grid gap-1 border-t border-gray-100 pt-3 dark:border-white/10">
+                    <span className="text-gray-500 dark:text-gray-300">Reference</span>
+                    <span className="break-words font-semibold text-gray-950 dark:text-white">
+                      {submission.bank_reference ?? "No reference"}
+                    </span>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+
+          <div className="hidden overflow-x-auto sm:block">
             <table className="min-w-full text-left text-sm">
               <thead className="bg-gray-50 text-xs uppercase text-gray-500 dark:bg-white/5 dark:text-gray-200">
                 <tr>
@@ -379,6 +516,7 @@ export default async function StatementReportsPage() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </section>
 
@@ -398,7 +536,59 @@ export default async function StatementReportsPage() {
             No individual bank-credit transactions were parsed from the latest statement. This is expected for SBG valuation statements, which summarize portfolio performance instead of listing every member deposit.
           </p>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="grid gap-3 p-3 sm:hidden">
+            {latestTransactions.map((transaction) => {
+              const submission = transaction.matched_submission_id
+                ? submissionLookup.get(transaction.matched_submission_id)
+                : null;
+
+              return (
+                <article
+                  key={transaction.id}
+                  className="rounded-xl border border-gray-200 bg-white/80 p-4 shadow-sm dark:border-white/15 dark:bg-white/5"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-lg font-semibold text-gray-950 dark:text-white">
+                        {money(transaction.credit)}
+                      </p>
+                      <p className="mt-1 text-sm text-gray-500 dark:text-gray-300">
+                        {transaction.transaction_date
+                          ? dateLabel(transaction.transaction_date)
+                          : "No date"}
+                      </p>
+                    </div>
+                    <StatusPill status={transaction.match_status} />
+                  </div>
+                  <div className="mt-4 grid gap-3 text-sm">
+                    <div className="grid gap-1 border-t border-gray-100 pt-3 dark:border-white/10">
+                      <span className="text-gray-500 dark:text-gray-300">Narration</span>
+                      <span className="break-words font-semibold text-gray-950 dark:text-white">
+                        {transaction.description ?? "No narration"}
+                      </span>
+                    </div>
+                    <div className="grid gap-1 border-t border-gray-100 pt-3 dark:border-white/10">
+                      <span className="text-gray-500 dark:text-gray-300">Matched member</span>
+                      <span className="break-words font-semibold text-gray-950 dark:text-white">
+                        {submission
+                          ? memberName(members[submission.member_id])
+                          : "Needs review"}
+                      </span>
+                    </div>
+                    <div className="grid gap-1 border-t border-gray-100 pt-3 dark:border-white/10">
+                      <span className="text-gray-500 dark:text-gray-300">Reference</span>
+                      <span className="break-words font-semibold text-gray-950 dark:text-white">
+                        {transaction.reference ?? "No reference"}
+                      </span>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+
+          <div className="hidden overflow-x-auto sm:block">
             <table className="min-w-full text-left text-sm">
               <thead className="bg-gray-50 text-xs uppercase text-gray-500 dark:bg-white/5 dark:text-gray-200">
                 <tr>
@@ -445,6 +635,7 @@ export default async function StatementReportsPage() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </section>
     </div>
