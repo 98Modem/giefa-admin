@@ -737,7 +737,7 @@ export function Header({ onOpenMobileSidebar }: HeaderProps) {
 
         <div
           ref={searchRef}
-          className="relative order-3 flex w-full flex-1 justify-center sm:order-none sm:mx-2 sm:w-auto lg:mx-3"
+          className="relative order-3 flex w-full justify-center sm:order-none sm:mx-2 sm:w-auto sm:flex-1 lg:mx-3"
         >
           <form
             className="w-full max-w-xl sm:min-w-52"
@@ -782,21 +782,21 @@ export function Header({ onOpenMobileSidebar }: HeaderProps) {
                     openSearchDestination(searchResults[selectedSearchIndex]);
                   }
                 }}
-                placeholder="Search members, deposits, reports, settings..."
-                className="h-10 w-full rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] pl-10 pr-4 text-sm font-medium text-gray-800 shadow-sm outline-none transition placeholder:text-gray-400 focus:border-brand-400 focus:ring-4 focus:ring-brand-500/10 dark:text-white sm:h-11"
+                placeholder="Search GIEFA..."
+                className="h-10 w-full rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] pl-10 pr-4 text-sm font-medium text-gray-800 shadow-sm outline-none transition placeholder:text-gray-400 focus:border-brand-400 focus:ring-4 focus:ring-brand-500/10 dark:text-white sm:h-11 lg:placeholder:text-gray-400"
                 aria-label="Search GIEFA"
               />
             </div>
           </form>
 
           {searchOpen && (
-            <div className="absolute top-full mt-2 w-full max-w-xl overflow-hidden rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-strong)] shadow-2xl ring-1 ring-black/5 dark:ring-white/10">
+            <div className="fixed left-3 right-3 top-[7.75rem] z-50 max-h-[calc(100vh-9rem)] overflow-hidden rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface-strong)] shadow-2xl ring-1 ring-black/5 dark:ring-white/10 sm:absolute sm:left-auto sm:right-auto sm:top-full sm:mt-2 sm:w-full sm:max-w-xl">
               <div className="border-b border-gray-100 px-4 py-3 dark:border-gray-800">
                 <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                   {searchQuery.trim() ? "Search results" : "Quick destinations"}
                 </p>
               </div>
-              <div className="max-h-96 overflow-y-auto p-2">
+              <div className="max-h-[calc(100vh-13rem)] overflow-y-auto p-2 sm:max-h-96">
                 {searchResults.length === 0 ? (
                   <p className="px-3 py-8 text-center text-sm text-gray-500 dark:text-gray-300">
                     No matching place found. Try &quot;deposit&quot;, &quot;members&quot;, &quot;reports&quot;, or type a URL like /dashboard.
@@ -867,7 +867,7 @@ export function Header({ onOpenMobileSidebar }: HeaderProps) {
             </button>
 
             {notificationsOpen && (
-              <div className="absolute right-0 mt-2 w-[calc(100vw-7rem)] max-w-96 origin-top-right overflow-hidden rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-strong)] shadow-2xl ring-1 ring-black/5 dark:ring-white/10 sm:w-96">
+              <div className="fixed left-3 right-3 top-[4.75rem] z-50 max-h-[calc(100vh-6rem)] origin-top-right overflow-hidden rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface-strong)] shadow-2xl ring-1 ring-black/5 dark:ring-white/10 sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-96 sm:max-w-[calc(100vw-2rem)]">
                 <div className="flex items-start justify-between gap-3 border-b border-gray-100 px-4 py-3 dark:border-gray-800">
                   <div>
                     <p className="text-sm font-semibold text-gray-900 dark:text-white">
@@ -888,7 +888,7 @@ export function Header({ onOpenMobileSidebar }: HeaderProps) {
                     Clear all
                   </button>
                 </div>
-                <div className="max-h-96 overflow-y-auto p-2">
+                <div className="max-h-[calc(100vh-13rem)] overflow-y-auto p-2 sm:max-h-96">
                   {notifications.length === 0 ? (
                     <p className="px-3 py-8 text-center text-sm text-gray-500 dark:text-gray-300">
                       {showAllNotifications
@@ -953,13 +953,17 @@ export function Header({ onOpenMobileSidebar }: HeaderProps) {
               aria-expanded={open}
               aria-label="Open system menu"
             >
-              <div
-                className="h-7 w-7 rounded-full border border-gray-200 bg-cover bg-center bg-gray-100 dark:border-gray-700 dark:bg-gray-800 sm:h-8 sm:w-8"
-                style={{
-                  backgroundImage: `url(${member?.avatar_url || "/user/owner.jpg"})`,
-                  backgroundPosition: avatarPosition,
-                }}
-              />
+              {member ? (
+                <div
+                  className="h-7 w-7 rounded-full border border-gray-200 bg-cover bg-center bg-gray-100 dark:border-gray-700 dark:bg-gray-800 sm:h-8 sm:w-8"
+                  style={{
+                    backgroundImage: `url(${member.avatar_url || "/user/owner.jpg"})`,
+                    backgroundPosition: avatarPosition,
+                  }}
+                />
+              ) : (
+                <div className="h-7 w-7 animate-pulse rounded-full border border-gray-200 bg-gray-200 dark:border-gray-700 dark:bg-gray-800 sm:h-8 sm:w-8" />
+              )}
               <div className="hidden min-w-0 sm:block">
                 <p className="max-w-36 truncate text-sm font-semibold text-gray-800 dark:text-white">
                   {displayName}
@@ -977,15 +981,19 @@ export function Header({ onOpenMobileSidebar }: HeaderProps) {
             </button>
 
             {open && (
-              <div className="absolute right-0 mt-2 w-[calc(100vw-7rem)] max-w-80 origin-top-right rounded-lg border border-[var(--app-border)] bg-[var(--app-surface-strong)] p-3 shadow-xl ring-1 ring-black/5 transition dark:ring-white/10 sm:w-80">
+              <div className="fixed left-3 right-3 top-[4.75rem] z-50 max-h-[calc(100vh-6rem)] origin-top-right overflow-y-auto rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface-strong)] p-3 shadow-2xl ring-1 ring-black/5 transition dark:ring-white/10 sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80">
                 <div className="flex items-center gap-3 border-b border-gray-100 pb-3 dark:border-gray-800">
-                  <div
-                    className="h-11 w-11 rounded-full border border-gray-200 bg-cover bg-center bg-gray-100 dark:border-gray-700"
-                    style={{
-                      backgroundImage: `url(${member?.avatar_url || "/user/owner.jpg"})`,
-                      backgroundPosition: avatarPosition,
-                    }}
-                  />
+                  {member ? (
+                    <div
+                      className="h-11 w-11 rounded-full border border-gray-200 bg-cover bg-center bg-gray-100 dark:border-gray-700"
+                      style={{
+                        backgroundImage: `url(${member.avatar_url || "/user/owner.jpg"})`,
+                        backgroundPosition: avatarPosition,
+                      }}
+                    />
+                  ) : (
+                    <div className="h-11 w-11 animate-pulse rounded-full border border-gray-200 bg-gray-200 dark:border-gray-700 dark:bg-gray-800" />
+                  )}
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">
                       {displayName}
