@@ -43,11 +43,13 @@ type PreparedProof = {
   name: string;
   type: string;
   base64Image?: string;
+  base64Pdf?: string;
   text?: string;
 };
 
 type OpenAIExtractionInput = {
   images: Array<{ name: string; type: string; base64: string }>;
+  pdfs: Array<{ name: string; type: string; base64: string }>;
   textBlocks: Array<{ name: string; text: string }>;
 };
 
@@ -579,6 +581,69 @@ async function extractGoogleVisionTextFromImage(base64Image: string) {
   return text;
 }
 
+async function extractGoogleVisionTextFromPdf(pdf: { name: string; type: string; base64: string }) {
+  const apiKey = process.env.GOOGLE_CLOUD_VISION_API_KEY;
+
+  if (!apiKey) {
+    throw new Error("GOOGLE_CLOUD_VISION_API_KEY is not configured. Add it to .env.local to enable Google Vision OCR.");
+  }
+
+  const response = await fetch(
+    `https://vision.googleapis.com/v1/files:annotate?key=${encodeURIComponent(apiKey)}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        requests: [
+          {
+            inputConfig: {
+              content: pdf.base64,
+              mimeType: pdf.type || "application/pdf",
+            },
+            features: [{ type: "DOCUMENT_TEXT_DETECTION", maxResults: 1 }],
+            pages: [1, 2],
+          },
+        ],
+      }),
+    }
+  );
+
+  const result = (await response.json()) as {
+    responses?: Array<{
+      responses?: Array<{
+        fullTextAnnotation?: { text?: string };
+        textAnnotations?: Array<{ description?: string }>;
+        error?: { message?: string; code?: number };
+      }>;
+      error?: { message?: string; code?: number };
+    }>;
+    error?: { message?: string; code?: number };
+  };
+
+  const fileError =
+    result.responses?.find((fileResponse) => fileResponse.error)?.error?.message ||
+    result.responses
+      ?.flatMap((fileResponse) => fileResponse.responses || [])
+      .find((pageResponse) => pageResponse.error)?.error?.message;
+
+  if (!response.ok || fileError) {
+    throw new Error(friendlyGoogleVisionError(result, response.status));
+  }
+
+  const text = (result.responses || [])
+    .flatMap((fileResponse) => fileResponse.responses || [])
+    .map((pageResponse) => pageResponse.fullTextAnnotation?.text || pageResponse.textAnnotations?.[0]?.description || "")
+    .filter(Boolean)
+    .join("\n\n")
+    .trim();
+
+  if (!text) {
+    throw new Error(`Google Vision did not find readable text in ${pdf.name}. Try a clearer PDF or enter the details manually.`);
+  }
+
+  return text;
+}
+
 async function extractWithGoogleVision(input: OpenAIExtractionInput) {
   const textBlocks = [...input.textBlocks];
 
@@ -586,6 +651,13 @@ async function extractWithGoogleVision(input: OpenAIExtractionInput) {
     textBlocks.push({
       name: image.name,
       text: await extractGoogleVisionTextFromImage(image.base64),
+    });
+  }
+
+  for (const pdf of input.pdfs) {
+    textBlocks.push({
+      name: pdf.name,
+      text: await extractGoogleVisionTextFromPdf(pdf),
     });
   }
 
@@ -602,47 +674,38 @@ async function extractWithGoogleVision(input: OpenAIExtractionInput) {
 }
 
 async function extractPdfText(file: File): Promise<string> {
-  const { PDFParse } = await import("pdf-parse");
-  const parser = new PDFParse({
-    data: Buffer.from(await file.arrayBuffer()),
-  });
+  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const pdf = await pdfjs.getDocument({
+    data: new Uint8Array(buffer),
+    useSystemFonts: true,
+  }).promise;
 
   try {
-    const result = await parser.getText();
-    return result.text.trim();
+    const pageCount = Math.min(pdf.numPages, 4);
+    const pageTexts = [];
+
+    for (let pageNumber = 1; pageNumber <= pageCount; pageNumber += 1) {
+      const page = await pdf.getPage(pageNumber);
+      const textContent = await page.getTextContent();
+      const text = textContent.items
+        .map((item) => {
+          if (typeof item === "object" && item && "str" in item && typeof item.str === "string") {
+            return item.str;
+          }
+
+          return "";
+        })
+        .filter(Boolean)
+        .join(" ");
+
+      if (text) pageTexts.push(text);
+      page.cleanup();
+    }
+
+    return pageTexts.join("\n\n").trim();
   } finally {
-    await parser.destroy();
-  }
-}
-
-async function renderPdfProofPages(file: File): Promise<PreparedProof[]> {
-  const { PDFParse } = await import("pdf-parse");
-  const parser = new PDFParse({
-    data: Buffer.from(await file.arrayBuffer()),
-  });
-
-  try {
-    const screenshot = await parser.getScreenshot({
-      first: 2,
-      desiredWidth: 1600,
-      imageDataUrl: true,
-      imageBuffer: false,
-    });
-
-    return screenshot.pages
-      .map((page, index) => {
-        const dataUrl = page.dataUrl || "";
-        const base64Image = dataUrl.includes(",") ? dataUrl.split(",").pop() || "" : dataUrl;
-
-        return {
-          name: `${file.name} page ${index + 1}`,
-          type: "image/png",
-          base64Image,
-        };
-      })
-      .filter((proof) => proof.base64Image);
-  } finally {
-    await parser.destroy();
+    await pdf.destroy();
   }
 }
 
@@ -657,7 +720,9 @@ async function prepareProof(file: File): Promise<PreparedProof[]> {
   }
 
   if (file.type === "application/pdf" || /\.pdf$/i.test(file.name)) {
-    const text = await extractPdfText(file);
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const pdfFile = new File([buffer], file.name, { type: file.type || "application/pdf" });
+    const text = await extractPdfText(pdfFile);
 
     if (text.length >= 20) {
       return [{
@@ -667,16 +732,11 @@ async function prepareProof(file: File): Promise<PreparedProof[]> {
       }];
     }
 
-    const renderedPages = await renderPdfProofPages(file);
-
-    if (renderedPages.length) {
-      return renderedPages;
-    }
-
     return [{
       name: file.name,
       type: file.type || "application/pdf",
       text,
+      base64Pdf: buffer.toString("base64"),
     }];
   }
 
@@ -741,6 +801,13 @@ export async function POST(request: Request) {
         type: proof.type,
         base64: proof.base64Image as string,
       })),
+    pdfs: preparedProofs
+      .filter((proof) => proof.base64Pdf)
+      .map((proof) => ({
+        name: proof.name,
+        type: proof.type,
+        base64: proof.base64Pdf as string,
+      })),
     textBlocks: preparedProofs
       .filter((proof) => proof.text)
       .map((proof) => ({
@@ -749,7 +816,11 @@ export async function POST(request: Request) {
       })),
   };
 
-  if (!extractionInput.images.length && !extractionInput.textBlocks.some((block) => block.text)) {
+  if (
+    !extractionInput.images.length &&
+    !extractionInput.pdfs.length &&
+    !extractionInput.textBlocks.some((block) => block.text)
+  ) {
     return jsonError("No readable text was found in the uploaded proof files.", 422);
   }
 
