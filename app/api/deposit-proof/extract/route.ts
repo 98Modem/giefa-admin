@@ -602,10 +602,17 @@ async function extractWithGoogleVision(input: OpenAIExtractionInput) {
 }
 
 async function extractPdfText(file: File): Promise<string> {
-  await file.arrayBuffer();
-  throw new Error(
-    "PDF deposit proof scanning is not available in production yet. Please upload a clear screenshot/image of the payment proof, or paste the PDF text into a .txt file and upload it."
-  );
+  const { PDFParse } = await import("pdf-parse");
+  const parser = new PDFParse({
+    data: Buffer.from(await file.arrayBuffer()),
+  });
+
+  try {
+    const result = await parser.getText();
+    return result.text.trim();
+  } finally {
+    await parser.destroy();
+  }
 }
 
 async function prepareProof(file: File): Promise<PreparedProof> {

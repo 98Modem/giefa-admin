@@ -178,12 +178,34 @@ export function DepositProofForm({ action }: DepositProofFormProps) {
         method: "POST",
         body: formData,
       });
-      const result = await response.json();
+      const responseText = await response.text();
+      let result: { error?: string; extraction?: Extraction };
+
+      try {
+        result = responseText
+          ? JSON.parse(responseText)
+          : {
+              error:
+                "The scan service returned an empty response. Please try again.",
+            };
+      } catch {
+        result = {
+          error:
+            "The scan service returned an unreadable response. Please try again.",
+        };
+      }
 
       if (!response.ok) {
         setScanError(result?.error || "AI extraction failed. Enter the details manually.");
         setInputValue(confidenceRef, 0);
         setInputValue(notesRef, result?.error || "AI extraction unavailable; member entered details manually.");
+        return;
+      }
+
+      if (!result.extraction) {
+        setScanError("AI extraction returned no deposit details. Enter the details manually.");
+        setInputValue(confidenceRef, 0);
+        setInputValue(notesRef, "AI extraction returned no deposit details; member entered details manually.");
         return;
       }
 

@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { PDFParse } from "pdf-parse";
 import { supabaseServer } from "@/app/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -165,6 +164,7 @@ function parseValuationSummary(text: string): ValuationSummary {
 }
 
 async function extractPdfText(file: File) {
+  const { PDFParse } = await import("pdf-parse");
   const parser = new PDFParse({
     data: Buffer.from(await file.arrayBuffer()),
   });
