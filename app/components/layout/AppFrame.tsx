@@ -59,7 +59,7 @@ export function AppFrame({
     <div
       className={clsx(
         "app-shell flex min-h-screen",
-        sidebarPosition === "right" && "flex-row-reverse"
+        sidebarPosition === "right" && "lg:flex-row-reverse"
       )}
     >
       <Sidebar
@@ -70,12 +70,12 @@ export function AppFrame({
 
       <div
         className={clsx(
-          "relative z-0 flex min-w-0 flex-1 flex-col transition-[padding] duration-300",
+          "relative z-0 flex min-w-0 flex-1 flex-col pl-[4.75rem] transition-[padding] duration-300 lg:pl-0",
           isFloating && "lg:pl-24"
         )}
       >
         <Header />
-        <main className="app-main min-w-0 flex-1 overflow-y-auto px-4 py-5 sm:px-5 lg:px-8 lg:py-7">
+        <main className="app-main min-w-0 flex-1 overflow-y-auto px-3 py-4 sm:px-5 lg:px-8 lg:py-7">
           {children}
         </main>
       </div>

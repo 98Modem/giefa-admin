@@ -126,17 +126,17 @@ export function GiefaAssistant({ destinations }: GiefaAssistantProps) {
   }
 
   return (
-    <div className="fixed bottom-5 right-5 z-[70]" ref={panelRef}>
+    <div className="fixed bottom-4 right-3 z-[70] sm:bottom-5 sm:right-5" ref={panelRef}>
       {!open && (
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="group flex h-16 items-center gap-3 rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface-strong)] px-4 text-left shadow-2xl ring-1 ring-black/10 transition hover:-translate-y-0.5 hover:shadow-brand-500/20 dark:ring-white/10"
+          className="group flex h-14 items-center gap-3 rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface-strong)] px-3 text-left shadow-2xl ring-1 ring-black/10 transition hover:-translate-y-0.5 hover:shadow-brand-500/20 dark:ring-white/10 sm:h-16 sm:px-4"
           aria-expanded={open}
           aria-label="Open Ask GIEFA"
         >
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-500 text-white shadow-lg shadow-brand-500/30 transition group-hover:scale-105">
-            <ChatBubbleLeftRightIcon className="h-6 w-6" aria-hidden="true" />
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-500 text-white shadow-lg shadow-brand-500/30 transition group-hover:scale-105 sm:h-11 sm:w-11">
+            <ChatBubbleLeftRightIcon className="h-5 w-5 sm:h-6 sm:w-6" aria-hidden="true" />
           </span>
           <span className="hidden sm:block">
             <span className="block text-sm font-bold text-gray-900 dark:text-white">
@@ -150,7 +150,7 @@ export function GiefaAssistant({ destinations }: GiefaAssistantProps) {
       )}
 
       {open && (
-        <div className="flex h-[min(680px,calc(100vh-2rem))] w-[min(440px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface-strong)] shadow-2xl ring-1 ring-black/10 dark:ring-white/10">
+        <div className="flex h-[min(680px,calc(100vh-1rem))] w-[calc(100vw-7rem)] max-w-[440px] flex-col overflow-hidden rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface-strong)] shadow-2xl ring-1 ring-black/10 dark:ring-white/10 sm:w-[min(440px,calc(100vw-1.5rem))]">
           <div className="flex items-start justify-between gap-3 border-b border-gray-100 px-4 py-4 dark:border-gray-800">
             <div className="flex items-start gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-500 text-white shadow-lg shadow-brand-500/20">

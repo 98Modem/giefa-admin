@@ -715,18 +715,18 @@ export function Header() {
   };
 
   return (
-    <header className="theme-header sticky top-0 z-40 flex w-full border-b px-4 py-3">
-      <div className="flex flex-1 flex-wrap items-center gap-3">
-        <h1 className="text-lg font-semibold text-gray-800 dark:text-white">
+    <header className="theme-header sticky top-0 z-40 flex w-full border-b px-3 py-3 sm:px-4">
+      <div className="flex flex-1 flex-wrap items-center gap-2 sm:gap-3">
+        <h1 className="min-w-0 flex-1 truncate text-base font-semibold text-gray-800 dark:text-white sm:text-lg lg:flex-none">
           GIEFA Dashboard
         </h1>
 
         <div
           ref={searchRef}
-          className="relative order-3 flex w-full flex-1 justify-center lg:order-none lg:mx-3 lg:w-auto"
+          className="relative order-3 flex w-full flex-1 justify-center sm:order-none sm:mx-2 sm:w-auto lg:mx-3"
         >
           <form
-            className="w-full max-w-xl"
+            className="w-full max-w-xl sm:min-w-52"
             onSubmit={(event) => {
               event.preventDefault();
               submitSearch();
@@ -769,7 +769,7 @@ export function Header() {
                   }
                 }}
                 placeholder="Search members, deposits, reports, settings..."
-                className="h-11 w-full rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] pl-10 pr-4 text-sm font-medium text-gray-800 shadow-sm outline-none transition placeholder:text-gray-400 focus:border-brand-400 focus:ring-4 focus:ring-brand-500/10 dark:text-white"
+                className="h-10 w-full rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] pl-10 pr-4 text-sm font-medium text-gray-800 shadow-sm outline-none transition placeholder:text-gray-400 focus:border-brand-400 focus:ring-4 focus:ring-brand-500/10 dark:text-white sm:h-11"
                 aria-label="Search GIEFA"
               />
             </div>
@@ -819,7 +819,7 @@ export function Header() {
           )}
         </div>
 
-        <div className="ml-auto flex items-center gap-3">
+        <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
           <GiefaAssistant destinations={searchDestinations} />
 
           <div
@@ -840,7 +840,7 @@ export function Header() {
                 cancelNotificationClose();
                 setNotificationsOpen((current) => !current);
               }}
-              className="relative flex h-11 w-11 items-center justify-center rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] text-gray-700 shadow-sm transition hover:bg-brand-50 dark:text-gray-100 dark:hover:bg-white/10"
+              className="relative flex h-10 w-10 items-center justify-center rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] text-gray-700 shadow-sm transition hover:bg-brand-50 dark:text-gray-100 dark:hover:bg-white/10 sm:h-11 sm:w-11"
               aria-label="Open notifications"
               aria-expanded={notificationsOpen}
             >
@@ -853,7 +853,7 @@ export function Header() {
             </button>
 
             {notificationsOpen && (
-              <div className="absolute right-0 mt-2 w-96 max-w-[calc(100vw-2rem)] origin-top-right overflow-hidden rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-strong)] shadow-2xl ring-1 ring-black/5 dark:ring-white/10">
+              <div className="absolute right-0 mt-2 w-[calc(100vw-7rem)] max-w-96 origin-top-right overflow-hidden rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-strong)] shadow-2xl ring-1 ring-black/5 dark:ring-white/10 sm:w-96">
                 <div className="flex items-start justify-between gap-3 border-b border-gray-100 px-4 py-3 dark:border-gray-800">
                   <div>
                     <p className="text-sm font-semibold text-gray-900 dark:text-white">
@@ -935,12 +935,12 @@ export function Header() {
                 cancelClose();
                 setOpen((current) => !current);
               }}
-              className="flex h-11 items-center gap-3 rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] px-2 pr-3 text-left shadow-sm transition hover:bg-brand-50 dark:hover:bg-white/10"
+              className="flex h-10 items-center gap-2 rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] px-2 text-left shadow-sm transition hover:bg-brand-50 dark:hover:bg-white/10 sm:h-11 sm:gap-3 sm:pr-3"
               aria-expanded={open}
               aria-label="Open system menu"
             >
               <div
-                className="h-8 w-8 rounded-full border border-gray-200 bg-cover bg-center bg-gray-100 dark:border-gray-700 dark:bg-gray-800"
+                className="h-7 w-7 rounded-full border border-gray-200 bg-cover bg-center bg-gray-100 dark:border-gray-700 dark:bg-gray-800 sm:h-8 sm:w-8"
                 style={{
                   backgroundImage: `url(${member?.avatar_url || "/user/owner.jpg"})`,
                   backgroundPosition: avatarPosition,
@@ -955,7 +955,7 @@ export function Header() {
                 </p>
               </div>
               <ChevronDownIcon
-                className={`h-4 w-4 text-gray-400 transition ${
+                className={`hidden h-4 w-4 text-gray-400 transition xsm:block ${
                   open ? "rotate-180" : ""
                 }`}
                 aria-hidden="true"
@@ -963,7 +963,7 @@ export function Header() {
             </button>
 
             {open && (
-              <div className="absolute right-0 mt-2 w-80 origin-top-right rounded-lg border border-[var(--app-border)] bg-[var(--app-surface-strong)] p-3 shadow-xl ring-1 ring-black/5 transition dark:ring-white/10">
+              <div className="absolute right-0 mt-2 w-[calc(100vw-7rem)] max-w-80 origin-top-right rounded-lg border border-[var(--app-border)] bg-[var(--app-surface-strong)] p-3 shadow-xl ring-1 ring-black/5 transition dark:ring-white/10 sm:w-80">
                 <div className="flex items-center gap-3 border-b border-gray-100 pb-3 dark:border-gray-800">
                   <div
                     className="h-11 w-11 rounded-full border border-gray-200 bg-cover bg-center bg-gray-100 dark:border-gray-700"

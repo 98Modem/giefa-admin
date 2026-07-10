@@ -61,10 +61,10 @@ function SidebarLoadingShell({
   return (
     <aside
       className={clsx(
-        "theme-sidebar z-[80] flex h-screen w-72.5 shrink-0 flex-col border-r",
+        "theme-sidebar fixed left-0 top-0 z-[80] flex h-screen w-[4.75rem] shrink-0 flex-col border-r lg:w-72.5",
         position === "floating"
-          ? "fixed left-4 top-4 h-[calc(100vh-2rem)] rounded-2xl border shadow-2xl"
-          : "sticky top-0"
+          ? "lg:left-4 lg:top-4 lg:h-[calc(100vh-2rem)] lg:rounded-2xl lg:border lg:shadow-2xl"
+          : "lg:sticky lg:top-0"
       )}
     >
       <div className="flex items-center justify-between px-4 pb-6 pt-6">
@@ -133,7 +133,9 @@ export default function Sidebar({
     const media = window.matchMedia("(max-width: 1024px)");
 
     const handleChange = (e: MediaQueryListEvent) => {
-      if (!sidebarStorageKey) setCollapsed(e.matches);
+      if (e.matches) {
+        setCollapsed(true);
+      }
     };
 
     media.addEventListener("change", handleChange);
@@ -149,6 +151,12 @@ export default function Sidebar({
     if (!mounted || !sidebarStorageKey) return;
 
     const storageTimer = window.setTimeout(() => {
+      if (window.matchMedia("(max-width: 1024px)").matches) {
+        setCollapsed(true);
+        setStorageReady(true);
+        return;
+      }
+
       const saved = localStorage.getItem(sidebarStorageKey);
 
       if (saved !== null) {
@@ -163,6 +171,8 @@ export default function Sidebar({
 
   useEffect(() => {
     if (mounted && storageReady && sidebarStorageKey) {
+      if (window.matchMedia("(max-width: 1024px)").matches) return;
+
       localStorage.setItem(sidebarStorageKey, String(collapsed));
     }
   }, [collapsed, mounted, sidebarStorageKey, storageReady]);
@@ -187,15 +197,27 @@ export default function Sidebar({
    Render
   ----------------------------------- */
   return (
-    <aside
-      className={clsx(
-        "theme-sidebar z-[80] flex h-screen shrink-0 flex-col overflow-visible transition-all duration-300",
-        isFloating
-          ? "theme-sidebar-floating fixed left-4 top-4 h-[calc(100vh-2rem)] rounded-2xl border"
-          : clsx("sticky top-0", isRight ? "border-l" : "border-r"),
-        collapsed ? "w-22.5" : "w-72.5"
+    <>
+      {!collapsed && (
+        <button
+          type="button"
+          aria-label="Close sidebar"
+          className="fixed inset-0 z-[70] bg-black/45 backdrop-blur-[2px] lg:hidden"
+          onClick={() => {
+            setOpenMenu(null);
+            setCollapsed(true);
+          }}
+        />
       )}
-    >
+      <aside
+        className={clsx(
+          "theme-sidebar fixed left-0 top-0 z-[80] flex h-screen shrink-0 flex-col overflow-visible transition-all duration-300 lg:sticky lg:top-0",
+          isFloating
+            ? "theme-sidebar-floating lg:left-4 lg:top-4 lg:h-[calc(100vh-2rem)] lg:rounded-2xl lg:border"
+            : clsx("border-r", isRight && "lg:border-l lg:border-r-0"),
+          collapsed ? "w-[4.75rem] lg:w-22.5" : "w-[min(18.125rem,82vw)] lg:w-72.5"
+        )}
+      >
       <div
         className={clsx(
           "px-4 pb-4 pt-5",
@@ -484,6 +506,7 @@ export default function Sidebar({
           )}
         </button>
       </div>
-    </aside>
+      </aside>
+    </>
   );
 }
