@@ -49,8 +49,8 @@ export default async function ChairmanFinanceOverviewPage() {
   const actorIsAdmin = currentMember?.role === "admin";
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
-      <div className="flex flex-col gap-4 border-b border-gray-200 pb-5 dark:border-white/20 lg:flex-row lg:items-end lg:justify-between">
+    <div className="mx-auto max-w-7xl space-y-4 sm:space-y-6">
+      <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface)] p-4 shadow-sm sm:p-5">
         <div>
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-300">
             Chairman
@@ -171,7 +171,73 @@ export default async function ChairmanFinanceOverviewPage() {
             No approved members are available for assignment.
           </p>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="grid gap-3 p-3 sm:hidden">
+            {activeMembers.map((member) => {
+              const isSelf = member.id === currentMember?.id;
+              const isOnlyChairman =
+                member.role === "chairman" &&
+                chairmen.length === 1 &&
+                !actorIsAdmin;
+
+              return (
+                <article
+                  key={member.id}
+                  className="rounded-xl border border-gray-200 bg-white/80 p-4 shadow-sm dark:border-white/15 dark:bg-white/5"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="break-words font-semibold text-gray-900 dark:text-white">
+                        {memberName(member)}
+                        {isSelf ? " (you)" : ""}
+                      </p>
+                      <p className="mt-1 break-words text-xs text-gray-500 dark:text-gray-300">
+                        {member.email ?? "No email"}
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-brand-100 px-2.5 py-1 text-xs font-semibold capitalize text-brand-700 dark:bg-brand-500/15 dark:text-brand-100">
+                      {roleLabel(member.role)}
+                    </span>
+                  </div>
+
+                  {isOnlyChairman && (
+                    <p className="mt-3 rounded-lg bg-amber-50 p-3 text-xs font-semibold text-amber-700 dark:bg-amber-500/10 dark:text-amber-100">
+                      Assign another chairman before changing this role.
+                    </p>
+                  )}
+
+                  <form action={assignMemberRole} className="mt-4 grid gap-3">
+                    <input type="hidden" name="member_id" value={member.id} />
+                    <label className="grid gap-2 text-sm font-semibold text-gray-900 dark:text-white">
+                      Assign role
+                      <select
+                        name="role"
+                        defaultValue={member.role}
+                        className="h-12 rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-white/15 dark:bg-white/10 dark:text-white"
+                      >
+                        {leadershipRoles.map((role) => (
+                          <option key={role.value} value={role.value}>
+                            {role.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <p className="text-xs leading-5 text-gray-500 dark:text-gray-300">
+                      {
+                        leadershipRoles.find((role) => role.value === member.role)
+                          ?.detail
+                      }
+                    </p>
+                    <button className="rounded-xl bg-brand-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-brand-600">
+                      Save Role
+                    </button>
+                  </form>
+                </article>
+              );
+            })}
+          </div>
+
+          <div className="hidden overflow-x-auto sm:block">
             <table className="min-w-full text-left text-sm">
               <thead className="bg-gray-50 text-xs uppercase text-gray-500 dark:bg-white/5 dark:text-gray-200">
                 <tr>
@@ -249,6 +315,7 @@ export default async function ChairmanFinanceOverviewPage() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </section>
     </div>
