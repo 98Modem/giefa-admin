@@ -60,6 +60,10 @@ function proofIsSupported(file: File) {
   );
 }
 
+function isTouchUploadViewport() {
+  return typeof window !== "undefined" && window.matchMedia("(max-width: 640px)").matches;
+}
+
 export function DepositProofForm({ action }: DepositProofFormProps) {
   const [isScanning, startScan] = useTransition();
   const [selectedProofs, setSelectedProofs] = useState<SelectedProof[]>([]);
@@ -215,38 +219,24 @@ export function DepositProofForm({ action }: DepositProofFormProps) {
   }
 
   return (
-    <section className="mx-auto max-w-7xl overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-white/15 dark:bg-white/10">
-      <div className="border-b border-gray-200 bg-gray-50/80 px-4 py-5 dark:border-white/10 dark:bg-white/5 sm:px-6">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-300">
-            New contribution evidence
-          </p>
-          <h2 className="mt-2 text-xl font-semibold text-gray-900 dark:text-white">
-            Upload, confirm, then send to finance
-          </h2>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600 dark:text-gray-200">
-            Add your payment screenshot, let AI suggest the details when available, then review the fields before finance matches it with the bank statement.
-          </p>
-        </div>
-      </div>
-
-      <form action={action} className="space-y-6 p-4 sm:p-6">
+    <section className="mx-auto max-w-7xl overflow-hidden rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface)] shadow-sm">
+      <form action={action} className="space-y-4 p-4 sm:p-5">
         <input ref={confidenceRef} name="extraction_confidence" type="hidden" />
         <input ref={notesRef} name="extraction_notes" type="hidden" />
 
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,0.95fr)_minmax(420px,1.05fr)]">
-          <div className="space-y-4">
-            <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-white/15 dark:bg-white/[0.03] sm:p-5">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,0.88fr)_minmax(420px,1.12fr)]">
+          <div className="space-y-3">
+            <div className="rounded-xl border border-[var(--app-border)] bg-white/70 p-4 dark:bg-white/[0.03] sm:p-5">
               <div className="flex items-start gap-3">
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-500 text-sm font-bold text-white">
                   1
                 </span>
                 <div>
                   <h3 className="font-semibold text-gray-900 dark:text-white">
-                    Upload payment proof
+                    1. Upload proof
                   </h3>
-                  <p className="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-200">
-                    Drop or choose one or more screenshots, PDFs, or text files. GIEFA scans them immediately and pre-fills what it can read.
+                  <p className="mt-1 text-sm leading-5 text-gray-600 dark:text-gray-200">
+                    Add screenshots, PDFs, or text files. Scanning starts automatically.
                   </p>
                 </div>
               </div>
@@ -264,32 +254,41 @@ export function DepositProofForm({ action }: DepositProofFormProps) {
               <div
                 onDragEnter={(event) => {
                   event.preventDefault();
+                  if (isTouchUploadViewport()) return;
                   setIsDraggingProof(true);
                 }}
-                onDragOver={(event) => event.preventDefault()}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  if (isTouchUploadViewport()) return;
+                }}
                 onDragLeave={(event) => {
                   event.preventDefault();
+                  if (isTouchUploadViewport()) return;
                   setIsDraggingProof(false);
                 }}
                 onDrop={(event) => {
                   event.preventDefault();
+                  if (isTouchUploadViewport()) return;
                   setIsDraggingProof(false);
                   if (event.dataTransfer.files.length) assignDroppedProofs(event.dataTransfer.files);
                 }}
-                className={`mt-4 rounded-2xl border border-dashed p-4 transition sm:p-5 ${
+                className={`mt-4 rounded-2xl border border-dashed p-3 transition sm:p-4 ${
                   isDraggingProof
                     ? "border-brand-500 bg-brand-50 dark:border-brand-300 dark:bg-brand-500/15"
                     : "border-gray-300 bg-gray-50 dark:border-white/15 dark:bg-black/20"
                 }`}
               >
-                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300">
-                  Drop files anywhere in this box or browse
+                <p className="mb-3 hidden text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300 sm:block">
+                  Drop files here or browse
+                </p>
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300 sm:hidden">
+                  Choose proof files
                 </p>
                 <div className="grid gap-3 sm:grid-cols-2">
                 <button
                   type="button"
                   onClick={() => proofRef.current?.click()}
-                  className="flex min-h-14 items-center justify-center rounded-lg bg-brand-500 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+                  className="flex min-h-12 items-center justify-center rounded-lg bg-brand-500 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
                 >
                   Choose Proof Files
                 </button>
@@ -297,90 +296,85 @@ export function DepositProofForm({ action }: DepositProofFormProps) {
                   type="button"
                   onClick={() => scanProof()}
                   disabled={isScanning || selectedProofs.length === 0}
-                  className="flex min-h-14 items-center justify-center rounded-lg border border-brand-200 bg-brand-50 px-4 text-sm font-semibold text-brand-700 transition hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-brand-300/30 dark:bg-brand-500/10 dark:text-brand-100 dark:hover:bg-brand-500/20"
+                  className="flex min-h-12 items-center justify-center rounded-lg border border-brand-200 bg-brand-50 px-4 text-sm font-semibold text-brand-700 transition hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-brand-300/30 dark:bg-brand-500/10 dark:text-brand-100 dark:hover:bg-brand-500/20"
                 >
                   {isScanning ? "Scanning proof..." : "Re-scan AI extraction"}
                 </button>
                 </div>
               </div>
 
-              <div className="mt-4 rounded-lg border border-dashed border-gray-300 bg-gray-50 p-3 dark:border-white/15 dark:bg-black/20">
-                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300">
-                  Selected files
-                </p>
-                {selectedFileNames.length ? (
-                  <div className="mt-2 space-y-1">
-                    {selectedFileNames.map((name) => (
-                      <p key={name} className="break-all text-sm font-medium text-gray-800 dark:text-gray-100">
-                        {name}
-                      </p>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="mt-1 text-sm font-medium text-gray-800 dark:text-gray-100">
-                    No proof file selected yet
+              <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
+                <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-3 dark:border-white/15 dark:bg-black/20">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300">
+                    Selected
                   </p>
-                )}
+                  {selectedFileNames.length ? (
+                    <div className="mt-2 space-y-1">
+                      {selectedFileNames.map((name) => (
+                        <p key={name} className="break-all text-sm font-medium text-gray-800 dark:text-gray-100">
+                          {name}
+                        </p>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-1 text-sm font-medium text-gray-800 dark:text-gray-100">
+                      No file selected
+                    </p>
+                  )}
+                </div>
+                <div className="rounded-lg border border-brand-200 bg-brand-50 p-3 text-sm dark:border-brand-300/20 dark:bg-brand-500/10">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300">
+                    Scan
+                  </p>
+                  <p className="mt-1 font-semibold text-gray-900 dark:text-white">
+                    {isScanning ? "Scanning..." : confidenceLabel}
+                  </p>
+                  {extraction?.needs_review && (
+                    <p className="mt-1 text-xs font-medium text-amber-700 dark:text-amber-200">
+                      Review fields before sending.
+                    </p>
+                  )}
+                </div>
               </div>
 
               {previewProof?.previewUrl ? (
-                <div className="mt-4 overflow-hidden rounded-xl border border-gray-200 bg-gray-950/5 dark:border-white/15 dark:bg-black/20">
+                <div className="mt-3 overflow-hidden rounded-xl border border-gray-200 bg-gray-950/5 dark:border-white/15 dark:bg-black/20">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={previewProof.previewUrl}
                     alt="Selected deposit proof preview"
-                    className="max-h-[360px] w-full object-contain"
+                    className="max-h-64 w-full object-contain sm:max-h-80"
                   />
                 </div>
               ) : (
-                <div className="mt-4 flex min-h-56 items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50 text-center text-sm text-gray-500 dark:border-white/15 dark:bg-black/20 dark:text-gray-300">
-                  Image preview will appear here. PDF and text proofs are still scanned.
+                <div className="mt-3 flex min-h-36 items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 text-center text-sm text-gray-500 dark:border-white/15 dark:bg-black/20 dark:text-gray-300 sm:min-h-44">
+                  Image preview appears here. PDFs and text files still scan.
                 </div>
               )}
             </div>
 
-            <div className="rounded-xl border border-brand-200 bg-brand-50 p-4 text-sm dark:border-brand-300/20 dark:bg-brand-500/10 sm:p-5">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="font-semibold text-gray-900 dark:text-white">
-                    Extraction status
-                  </p>
-                  <p className="mt-1 text-gray-600 dark:text-gray-200">
-                    {confidenceLabel}
-                  </p>
-                </div>
-                <span className="w-fit rounded-full bg-white px-3 py-1 text-xs font-semibold text-brand-700 shadow-sm dark:bg-white/10 dark:text-brand-100">
-                  Finance verifies later
-                </span>
-              </div>
-              {extraction?.needs_review && (
-                <p className="mt-3 text-xs font-medium text-amber-700 dark:text-amber-200">
-                  Please review the extracted fields carefully before submitting.
+            {scanError && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-300/25 dark:bg-amber-500/10 dark:text-amber-100">
+                <p className="font-semibold">AI scan unavailable</p>
+                <p className="mt-1 leading-5">{scanError}</p>
+                <p className="mt-2 leading-5">
+                  Fill the fields manually. Finance will still verify against the bank statement.
                 </p>
-              )}
-              {scanError && (
-                <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-300/25 dark:bg-amber-500/10 dark:text-amber-100">
-                  <p className="font-semibold">AI scan unavailable</p>
-                  <p className="mt-1 leading-5">{scanError}</p>
-                  <p className="mt-2 leading-5">
-                    Fill the fields manually from the screenshot. Finance will still verify it against the bank statement.
-                  </p>
-                </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
 
-          <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-white/15 dark:bg-white/[0.03] sm:p-5">
+          <div className="rounded-xl border border-[var(--app-border)] bg-white/70 p-4 dark:bg-white/[0.03] sm:p-5">
             <div className="flex items-start gap-3">
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-500 text-sm font-bold text-white">
                 2
               </span>
-              <div>
-                <h3 className="font-semibold text-gray-900 dark:text-white">
-                  Confirm deposit details
+                <div>
+                  <h3 className="font-semibold text-gray-900 dark:text-white">
+                  2. Confirm details
                 </h3>
-                <p className="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-200">
-                  Check every field before sending. These are pending records until finance approves them.
+                <p className="mt-1 text-sm leading-5 text-gray-600 dark:text-gray-200">
+                  Confirm the scanned values before finance review.
                 </p>
               </div>
             </div>
@@ -400,7 +394,7 @@ export function DepositProofForm({ action }: DepositProofFormProps) {
                   className={fieldClass}
                   onChange={(event) => updateDefaultAllocation(Number(event.currentTarget.value))}
                 />
-                <p className={hintClass}>Use the amount shown on the proof. Emergency is auto-filled at 30%.</p>
+                <p className={hintClass}>Emergency auto-fills at 30%.</p>
               </label>
 
               <label className="block">
@@ -464,11 +458,11 @@ export function DepositProofForm({ action }: DepositProofFormProps) {
                   ref={referenceRef}
                   name="bank_reference"
                   type="text"
-                  placeholder="Transaction ID, reference number, or statement narration"
+                  placeholder="Transaction ID or reference number"
                   className={fieldClass}
                 />
                 <p className={hintClass}>
-                  If the screenshot has a reference number, paste or confirm it here.
+                  Use the reference shown on the proof.
                 </p>
               </label>
 
@@ -484,15 +478,15 @@ export function DepositProofForm({ action }: DepositProofFormProps) {
               </label>
             </div>
 
-            <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900 dark:border-emerald-300/20 dark:bg-emerald-500/10 dark:text-emerald-100">
+            <div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900 dark:border-emerald-300/20 dark:bg-emerald-500/10 dark:text-emerald-100">
               <div className="flex items-start gap-3">
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-sm font-bold text-white">
                   3
                 </span>
                 <div>
                   <p className="font-semibold">Send to finance review</p>
-                  <p className="mt-1 leading-6">
-                    Your balance will not change immediately. Finance must match this proof with the bank statement before posting it to your ledger.
+                  <p className="mt-1 leading-5">
+                    Finance posts it after bank matching.
                   </p>
                 </div>
               </div>
