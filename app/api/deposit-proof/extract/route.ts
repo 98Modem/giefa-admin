@@ -615,30 +615,77 @@ async function extractPdfText(file: File): Promise<string> {
   }
 }
 
-async function prepareProof(file: File): Promise<PreparedProof> {
+async function renderPdfProofPages(file: File): Promise<PreparedProof[]> {
+  const { PDFParse } = await import("pdf-parse");
+  const parser = new PDFParse({
+    data: Buffer.from(await file.arrayBuffer()),
+  });
+
+  try {
+    const screenshot = await parser.getScreenshot({
+      first: 2,
+      desiredWidth: 1600,
+      imageDataUrl: true,
+      imageBuffer: false,
+    });
+
+    return screenshot.pages
+      .map((page, index) => {
+        const dataUrl = page.dataUrl || "";
+        const base64Image = dataUrl.includes(",") ? dataUrl.split(",").pop() || "" : dataUrl;
+
+        return {
+          name: `${file.name} page ${index + 1}`,
+          type: "image/png",
+          base64Image,
+        };
+      })
+      .filter((proof) => proof.base64Image);
+  } finally {
+    await parser.destroy();
+  }
+}
+
+async function prepareProof(file: File): Promise<PreparedProof[]> {
   if (file.type.startsWith("image/")) {
     const buffer = Buffer.from(await file.arrayBuffer());
-    return {
+    return [{
       name: file.name,
       type: file.type,
       base64Image: buffer.toString("base64"),
-    };
+    }];
   }
 
   if (file.type === "application/pdf" || /\.pdf$/i.test(file.name)) {
-    return {
+    const text = await extractPdfText(file);
+
+    if (text.length >= 20) {
+      return [{
+        name: file.name,
+        type: file.type || "application/pdf",
+        text,
+      }];
+    }
+
+    const renderedPages = await renderPdfProofPages(file);
+
+    if (renderedPages.length) {
+      return renderedPages;
+    }
+
+    return [{
       name: file.name,
       type: file.type || "application/pdf",
-      text: await extractPdfText(file),
-    };
+      text,
+    }];
   }
 
   if (file.type === "text/plain" || /\.txt$/i.test(file.name)) {
-    return {
+    return [{
       name: file.name,
       type: file.type || "text/plain",
       text: (await file.text()).trim(),
-    };
+    }];
   }
 
   throw new Error("Only images, PDFs, and text files can be scanned.");
@@ -685,7 +732,7 @@ export async function POST(request: Request) {
     return jsonError("Each proof file must be 8MB or smaller.");
   }
 
-  const preparedProofs = await Promise.all(proofs.map((proof) => prepareProof(proof)));
+  const preparedProofs = (await Promise.all(proofs.map((proof) => prepareProof(proof)))).flat();
   const extractionInput: OpenAIExtractionInput = {
     images: preparedProofs
       .filter((proof) => proof.base64Image)
