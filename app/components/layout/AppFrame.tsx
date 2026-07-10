@@ -25,6 +25,7 @@ export function AppFrame({
   initialUserId,
   initialSidebarPosition,
 }: AppFrameProps) {
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [sidebarPosition, setSidebarPosition] = useState<SidebarPosition>(() => {
     if (typeof window === "undefined") return initialSidebarPosition;
 
@@ -66,15 +67,17 @@ export function AppFrame({
         initialRole={initialRole}
         initialUserId={initialUserId}
         position={sidebarPosition}
+        mobileOpen={mobileSidebarOpen}
+        onMobileClose={() => setMobileSidebarOpen(false)}
       />
 
       <div
         className={clsx(
-          "relative z-0 flex min-w-0 flex-1 flex-col pl-[4.75rem] transition-[padding] duration-300 lg:pl-0",
+          "relative z-0 flex min-w-0 flex-1 flex-col transition-[padding] duration-300",
           isFloating && "lg:pl-24"
         )}
       >
-        <Header />
+        <Header onOpenMobileSidebar={() => setMobileSidebarOpen(true)} />
         <main className="app-main min-w-0 flex-1 overflow-y-auto px-3 py-4 sm:px-5 lg:px-8 lg:py-7">
           {children}
         </main>

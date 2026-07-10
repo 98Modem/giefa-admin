@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowRightOnRectangleIcon,
+  Bars3Icon,
   BellIcon,
   ChevronDownIcon,
   Cog6ToothIcon,
@@ -170,7 +171,11 @@ function scoreDestination(destination: SearchDestination, query: string) {
   return matchedTerms > 0 ? 28 + matchedTerms * 8 : 0;
 }
 
-export function Header() {
+type HeaderProps = {
+  onOpenMobileSidebar?: () => void;
+};
+
+export function Header({ onOpenMobileSidebar }: HeaderProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [member, setMember] = useState<HeaderMember | null>(null);
@@ -717,6 +722,15 @@ export function Header() {
   return (
     <header className="theme-header sticky top-0 z-40 flex w-full border-b px-3 py-3 sm:px-4">
       <div className="flex flex-1 flex-wrap items-center gap-2 sm:gap-3">
+        <button
+          type="button"
+          onClick={onOpenMobileSidebar}
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] text-gray-700 shadow-sm transition hover:bg-brand-50 dark:text-gray-100 dark:hover:bg-white/10 lg:hidden"
+          aria-label="Open navigation menu"
+        >
+          <Bars3Icon className="h-5 w-5" aria-hidden="true" />
+        </button>
+
         <h1 className="min-w-0 flex-1 truncate text-base font-semibold text-gray-800 dark:text-white sm:text-lg lg:flex-none">
           GIEFA Dashboard
         </h1>

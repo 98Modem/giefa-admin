@@ -55,13 +55,16 @@ function Tooltip({
 
 function SidebarLoadingShell({
   position = "left",
+  mobileOpen = false,
 }: {
   position?: SidebarPosition;
+  mobileOpen?: boolean;
 }) {
   return (
     <aside
       className={clsx(
-        "theme-sidebar fixed left-0 top-0 z-[80] flex h-screen w-[4.75rem] shrink-0 flex-col border-r lg:w-72.5",
+        "theme-sidebar fixed left-0 top-0 z-[80] flex h-screen w-[min(20rem,86vw)] shrink-0 flex-col border-r transition-transform duration-300 lg:w-72.5",
+        mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
         position === "floating"
           ? "lg:left-4 lg:top-4 lg:h-[calc(100vh-2rem)] lg:rounded-2xl lg:border lg:shadow-2xl"
           : "lg:sticky lg:top-0"
@@ -92,6 +95,8 @@ type SidebarProps = {
   initialRole?: Role | null;
   initialUserId?: string | null;
   position?: SidebarPosition;
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
 };
 
 /* -----------------------------------
@@ -101,6 +106,8 @@ export default function Sidebar({
   initialRole = null,
   initialUserId = null,
   position = "left",
+  mobileOpen = false,
+  onMobileClose,
 }: SidebarProps) {
   const pathname = usePathname();
   const { role, userId, loading } = useUserRole({
@@ -122,6 +129,7 @@ export default function Sidebar({
     : null;
   const isRight = position === "right";
   const isFloating = position === "floating";
+  const compact = collapsed && !mobileOpen;
 
   const isActive = (href?: string) =>
     href ? pathname === href || pathname.startsWith(href) : false;
@@ -177,7 +185,14 @@ export default function Sidebar({
     }
   }, [collapsed, mounted, sidebarStorageKey, storageReady]);
 
-  if (loading || !role) return <SidebarLoadingShell position={position} />;
+  if (loading || !role) {
+    return <SidebarLoadingShell position={position} mobileOpen={mobileOpen} />;
+  }
+
+  const closeMobileNavigation = () => {
+    setOpenMenu(null);
+    onMobileClose?.();
+  };
 
   /* -----------------------------------
    Logout
@@ -198,39 +213,40 @@ export default function Sidebar({
   ----------------------------------- */
   return (
     <>
-      {!collapsed && (
+      {mobileOpen && (
         <button
           type="button"
           aria-label="Close sidebar"
           className="fixed inset-0 z-[70] bg-black/45 backdrop-blur-[2px] lg:hidden"
           onClick={() => {
             setOpenMenu(null);
-            setCollapsed(true);
+            onMobileClose?.();
           }}
         />
       )}
       <aside
         className={clsx(
-          "theme-sidebar fixed left-0 top-0 z-[80] flex h-screen shrink-0 flex-col overflow-visible transition-all duration-300 lg:sticky lg:top-0",
+          "theme-sidebar fixed left-0 top-0 z-[80] flex h-screen w-[min(20rem,86vw)] shrink-0 flex-col overflow-visible transition-all duration-300 lg:sticky lg:top-0",
+          mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
           isFloating
             ? "theme-sidebar-floating lg:left-4 lg:top-4 lg:h-[calc(100vh-2rem)] lg:rounded-2xl lg:border"
             : clsx("border-r", isRight && "lg:border-l lg:border-r-0"),
-          collapsed ? "w-[4.75rem] lg:w-22.5" : "w-[min(18.125rem,82vw)] lg:w-72.5"
+          compact ? "lg:w-22.5" : "lg:w-72.5"
         )}
       >
       <div
         className={clsx(
           "px-4 pb-4 pt-5",
-          collapsed ? "justify-center" : "justify-between"
+          compact ? "justify-center" : "justify-between"
         )}
       >
         <div
           className={clsx(
             "flex min-h-14 items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.07] px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]",
-            collapsed ? "justify-center" : "justify-between"
+            compact ? "justify-center" : "justify-between"
           )}
         >
-          {!collapsed && (
+          {!compact && (
             <div className="min-w-0">
               <p className="text-base font-bold tracking-wide text-white">
                 GIEFA
@@ -243,10 +259,15 @@ export default function Sidebar({
           <button
             onClick={() => {
               setOpenMenu(null);
+              if (mobileOpen) {
+                onMobileClose?.();
+                return;
+              }
+
               setCollapsed(!collapsed);
             }}
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white/75 transition hover:bg-white/[0.12] hover:text-white"
-            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-label={mobileOpen ? "Close sidebar" : compact ? "Expand sidebar" : "Collapse sidebar"}
           >
             <Bars3Icon className="h-5 w-5" />
           </button>
@@ -256,7 +277,7 @@ export default function Sidebar({
       <nav
         className={clsx(
           "custom-scrollbar flex min-h-0 flex-1 flex-col gap-1.5 px-3 pb-4 pt-1",
-          collapsed ? "overflow-visible" : "overflow-y-auto"
+          compact ? "overflow-visible" : "overflow-y-auto"
         )}
       >
         {SIDEBAR_MENU
@@ -277,25 +298,25 @@ export default function Sidebar({
                 isActive(sub.href)
               );
 
-            const isOpen = !collapsed && (openMenu === item.key || itemActive);
-            const isFlyoutOpen = collapsed && openMenu === item.key;
+            const isOpen = !compact && (openMenu === item.key || itemActive);
+            const isFlyoutOpen = compact && openMenu === item.key;
 
             return (
               <div
                 key={item.key}
                 className="group relative z-[90]"
                 onMouseEnter={() => {
-                  if (collapsed && visibleSubItems.length > 0) {
+                  if (compact && visibleSubItems.length > 0) {
                     setOpenMenu(item.key);
                   }
                 }}
                 onMouseLeave={() => {
-                  if (collapsed && openMenu === item.key) {
+                  if (compact && openMenu === item.key) {
                     setOpenMenu(null);
                   }
                 }}
                 onFocus={() => {
-                  if (collapsed && visibleSubItems.length > 0) {
+                  if (compact && visibleSubItems.length > 0) {
                     setOpenMenu(item.key);
                   }
                 }}
@@ -303,7 +324,7 @@ export default function Sidebar({
                 {item.href ? (
                   <Link
                     href={item.href}
-                    onClick={() => setOpenMenu(null)}
+                    onClick={closeMobileNavigation}
                     className={clsx(
                       "relative flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 font-semibold transition-all duration-200",
                       itemActive
@@ -329,19 +350,19 @@ export default function Sidebar({
                     >
                       <Icon className="h-5 w-5" />
                     </span>
-                    {!collapsed && <span className="truncate">{item.title}</span>}
+                    {!compact && <span className="truncate">{item.title}</span>}
                   </Link>
                 ) : (
                   <button
                     onClick={() => {
-                      if (collapsed) {
+                      if (compact) {
                         setOpenMenu(item.key);
                         return;
                       }
 
                       setOpenMenu(isOpen ? null : item.key);
                     }}
-                    aria-expanded={collapsed ? isFlyoutOpen : isOpen}
+                    aria-expanded={compact ? isFlyoutOpen : isOpen}
                     className={clsx(
                       "relative flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left font-semibold transition-all duration-200",
                       itemActive
@@ -367,8 +388,8 @@ export default function Sidebar({
                     >
                       <Icon className="h-5 w-5" />
                     </span>
-                    {!collapsed && <span className="truncate">{item.title}</span>}
-                    {!collapsed && (
+                    {!compact && <span className="truncate">{item.title}</span>}
+                    {!compact && (
                       <ChevronRightIcon
                         className={clsx(
                           "ml-auto h-4 w-4 text-white/45 transition-transform",
@@ -379,11 +400,11 @@ export default function Sidebar({
                   </button>
                 )}
 
-                {collapsed && visibleSubItems.length === 0 && (
+                {compact && visibleSubItems.length === 0 && (
                   <Tooltip label={item.title} position={position} />
                 )}
 
-                {collapsed && visibleSubItems.length > 0 && (
+                {compact && visibleSubItems.length > 0 && (
                   <div
                     className={clsx(
                       "pointer-events-none invisible absolute top-1/2 z-[120] w-68 opacity-0 transition-all duration-200 ease-out",
@@ -421,7 +442,7 @@ export default function Sidebar({
                           <li key={sub.href}>
                             <Link
                               href={sub.href}
-                              onClick={() => setOpenMenu(null)}
+                              onClick={closeMobileNavigation}
                               className={clsx(
                                 "group/sub flex items-center justify-between rounded-md px-3 py-2.5 text-sm leading-5 transition-all duration-150",
                                 isActive(sub.href)
@@ -447,7 +468,7 @@ export default function Sidebar({
                   </div>
                 )}
 
-                {visibleSubItems.length > 0 && !collapsed && (
+                {visibleSubItems.length > 0 && !compact && (
                   <div
                     className={clsx(
                       "grid transition-all duration-200 ease-out",
@@ -464,7 +485,7 @@ export default function Sidebar({
                           <li key={sub.href}>
                             <Link
                               href={sub.href}
-                              onClick={() => setOpenMenu(null)}
+                              onClick={closeMobileNavigation}
                               className={clsx(
                                 "block rounded-lg px-3 py-2 text-sm leading-5 transition-all duration-150",
                                 isActive(sub.href)
@@ -492,14 +513,14 @@ export default function Sidebar({
           aria-label="Logout"
           className={clsx(
             "flex min-h-10 w-full items-center gap-3 rounded-lg px-3 py-2 font-medium transition",
-            collapsed && "justify-center",
+            compact && "justify-center",
             loggingOut
               ? "cursor-not-allowed text-white/40"
               : "text-red-100 hover:bg-red-500/15 hover:text-white hover:shadow-[0_0_0_1px_rgba(255,255,255,0.08)]"
           )}
         >
           <ArrowLeftOnRectangleIcon className="h-6 w-6" />
-          {!collapsed && (
+          {!compact && (
             <span>
               {loggingOut ? "Logging out..." : "Logout"}
             </span>
