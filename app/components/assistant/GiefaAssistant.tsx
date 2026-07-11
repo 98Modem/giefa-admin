@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useRef, useState } from "react";
+import { FormEvent, PointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ChatBubbleLeftRightIcon,
@@ -31,6 +31,11 @@ type GiefaAssistantProps = {
   destinations: AssistantDestination[];
 };
 
+type AssistantPosition = {
+  x: number;
+  y: number;
+};
+
 const starterPrompts = [
   "What is my current role?",
   "Explain my contribution status",
@@ -42,9 +47,82 @@ function uniqueId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
+const positionStorageKey = "giefa-assistant-position";
+const viewportPadding = 12;
+
+function getDefaultPosition() {
+  if (typeof window === "undefined") return { x: 0, y: 0 };
+
+  const compact = window.innerWidth < 640;
+  return {
+    x: Math.max(viewportPadding, window.innerWidth - (compact ? 96 : 360)),
+    y: Math.max(viewportPadding, window.innerHeight - (compact ? 140 : 132)),
+  };
+}
+
+function getStoredPosition() {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const stored = window.localStorage.getItem(positionStorageKey);
+    if (!stored) return null;
+    const parsed = JSON.parse(stored) as Partial<AssistantPosition>;
+    if (
+      typeof parsed.x !== "number" ||
+      typeof parsed.y !== "number" ||
+      !Number.isFinite(parsed.x) ||
+      !Number.isFinite(parsed.y)
+    ) {
+      return null;
+    }
+
+    return { x: parsed.x, y: parsed.y };
+  } catch {
+    return null;
+  }
+}
+
+function clampPosition(
+  position: AssistantPosition,
+  size: { width: number; height: number }
+) {
+  if (typeof window === "undefined") return position;
+
+  return {
+    x: Math.min(
+      Math.max(position.x, viewportPadding),
+      Math.max(viewportPadding, window.innerWidth - size.width - viewportPadding)
+    ),
+    y: Math.min(
+      Math.max(position.y, viewportPadding),
+      Math.max(viewportPadding, window.innerHeight - size.height - viewportPadding)
+    ),
+  };
+}
+
+function getAssistantSize(open: boolean) {
+  if (typeof window === "undefined") return { width: 320, height: 96 };
+
+  if (open) {
+    return {
+      width: Math.min(440, Math.max(280, window.innerWidth - 24)),
+      height: Math.min(680, window.innerHeight - 16),
+    };
+  }
+
+  return {
+    width: window.innerWidth < 640 ? 72 : 340,
+    height: window.innerWidth < 640 ? 72 : 80,
+  };
+}
+
 export function GiefaAssistant({ destinations }: GiefaAssistantProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [position, setPosition] = useState<AssistantPosition>(() =>
+    getDefaultPosition()
+  );
+  const [positionReady, setPositionReady] = useState(false);
   const [question, setQuestion] = useState("");
   const [loading, setLoading] = useState(false);
   const [messages, setMessages] = useState<AssistantMessage[]>([
@@ -56,9 +134,114 @@ export function GiefaAssistant({ destinations }: GiefaAssistantProps) {
     },
   ]);
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const dragStateRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    originX: number;
+    originY: number;
+    moved: boolean;
+  } | null>(null);
+  const ignoreNextClickRef = useRef(false);
 
   const quickLinks = useMemo(() => destinations.slice(0, 4), [destinations]);
   const hasConversationStarted = messages.some((message) => message.role === "user");
+
+  useEffect(() => {
+    const initial = getStoredPosition() ?? getDefaultPosition();
+    setPosition(clampPosition(initial, getAssistantSize(false)));
+    setPositionReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!positionReady) return;
+    setPosition((current) => clampPosition(current, getAssistantSize(open)));
+  }, [open, positionReady]);
+
+  useEffect(() => {
+    if (!positionReady) return;
+
+    const handleResize = () => {
+      setPosition((current) => clampPosition(current, getAssistantSize(open)));
+    };
+
+    window.addEventListener("resize", handleResize);
+    window.addEventListener("orientationchange", handleResize);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      window.removeEventListener("orientationchange", handleResize);
+    };
+  }, [open, positionReady]);
+
+  function savePosition(nextPosition: AssistantPosition) {
+    setPosition(nextPosition);
+    window.localStorage.setItem(positionStorageKey, JSON.stringify(nextPosition));
+  }
+
+  function startDrag(event: PointerEvent<HTMLElement>) {
+    if (event.button !== 0) return;
+
+    const target = event.target as HTMLElement;
+    if (
+      target.closest("input, button, a, textarea, select") &&
+      target !== event.currentTarget
+    ) {
+      return;
+    }
+
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragStateRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      originX: position.x,
+      originY: position.y,
+      moved: false,
+    };
+  }
+
+  function moveDrag(event: PointerEvent<HTMLElement>) {
+    const dragState = dragStateRef.current;
+    if (!dragState || dragState.pointerId !== event.pointerId) return;
+
+    const deltaX = event.clientX - dragState.startX;
+    const deltaY = event.clientY - dragState.startY;
+
+    if (Math.abs(deltaX) > 3 || Math.abs(deltaY) > 3) {
+      dragState.moved = true;
+      ignoreNextClickRef.current = true;
+    }
+
+    setPosition(
+      clampPosition(
+        {
+          x: dragState.originX + deltaX,
+          y: dragState.originY + deltaY,
+        },
+        getAssistantSize(open)
+      )
+    );
+  }
+
+  function endDrag(event: PointerEvent<HTMLElement>) {
+    const dragState = dragStateRef.current;
+    if (!dragState || dragState.pointerId !== event.pointerId) return;
+
+    const nextPosition = clampPosition(
+      {
+        x: dragState.originX + event.clientX - dragState.startX,
+        y: dragState.originY + event.clientY - dragState.startY,
+      },
+      getAssistantSize(open)
+    );
+    dragStateRef.current = null;
+    savePosition(nextPosition);
+
+    window.setTimeout(() => {
+      ignoreNextClickRef.current = false;
+    }, 0);
+  }
 
   async function askAssistant(nextQuestion?: string) {
     const prompt = (nextQuestion ?? question).trim();
@@ -126,14 +309,31 @@ export function GiefaAssistant({ destinations }: GiefaAssistantProps) {
   }
 
   return (
-    <div className="fixed bottom-4 right-3 z-[70] sm:bottom-5 sm:right-5" ref={panelRef}>
+    <div
+      className="fixed z-[70]"
+      ref={panelRef}
+      style={{
+        left: positionReady ? position.x : undefined,
+        top: positionReady ? position.y : undefined,
+        right: positionReady ? "auto" : 12,
+        bottom: positionReady ? "auto" : 16,
+      }}
+    >
       {!open && (
         <button
           type="button"
-          onClick={() => setOpen(true)}
-          className="group flex h-14 items-center gap-3 rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface-strong)] px-3 text-left shadow-2xl ring-1 ring-black/10 transition hover:-translate-y-0.5 hover:shadow-brand-500/20 dark:ring-white/10 sm:h-16 sm:px-4"
+          onPointerDown={startDrag}
+          onPointerMove={moveDrag}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+          onClick={() => {
+            if (ignoreNextClickRef.current) return;
+            setOpen(true);
+          }}
+          className="group flex h-14 touch-none select-none items-center gap-3 rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface-strong)] px-3 text-left shadow-2xl ring-1 ring-black/10 transition hover:-translate-y-0.5 hover:shadow-brand-500/20 active:cursor-grabbing dark:ring-white/10 sm:h-16 sm:px-4"
           aria-expanded={open}
-          aria-label="Open Ask GIEFA"
+          aria-label="Open or drag Ask GIEFA"
+          title="Drag to move Ask GIEFA"
         >
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-500 text-white shadow-lg shadow-brand-500/30 transition group-hover:scale-105 sm:h-11 sm:w-11">
             <ChatBubbleLeftRightIcon className="h-5 w-5 sm:h-6 sm:w-6" aria-hidden="true" />
@@ -151,7 +351,14 @@ export function GiefaAssistant({ destinations }: GiefaAssistantProps) {
 
       {open && (
         <div className="flex h-[min(680px,calc(100vh-1rem))] w-[calc(100vw-7rem)] max-w-[440px] flex-col overflow-hidden rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface-strong)] shadow-2xl ring-1 ring-black/10 dark:ring-white/10 sm:w-[min(440px,calc(100vw-1.5rem))]">
-          <div className="flex items-start justify-between gap-3 border-b border-gray-100 px-4 py-4 dark:border-gray-800">
+          <div
+            className="flex touch-none select-none items-start justify-between gap-3 border-b border-gray-100 px-4 py-4 dark:border-gray-800"
+            onPointerDown={startDrag}
+            onPointerMove={moveDrag}
+            onPointerUp={endDrag}
+            onPointerCancel={endDrag}
+            title="Drag to move Ask GIEFA"
+          >
             <div className="flex items-start gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-500 text-white shadow-lg shadow-brand-500/20">
                 <ChatBubbleLeftRightIcon className="h-5 w-5" aria-hidden="true" />
