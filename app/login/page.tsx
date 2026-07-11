@@ -68,6 +68,21 @@ export default function LoginPage() {
 
       <div className="flex w-full flex-col justify-center px-6 lg:w-1/2">
         <div className="mx-auto w-full max-w-md">
+          <div className="mb-8 flex justify-center lg:hidden">
+            <div
+              className="giefa-login-logo-card giefa-premium-logo flex h-24 w-24 items-center justify-center rounded-[1.65rem]"
+              aria-label="GIEFA logo"
+              role="img"
+            >
+              <img
+                src="/logo/auth-logo-login.png"
+                alt=""
+                className="giefa-login-logo-img h-16 w-16"
+                draggable={false}
+              />
+            </div>
+          </div>
+
           <h1 className="mb-2 text-2xl font-semibold text-gray-800 dark:text-white">
             Sign In
           </h1>

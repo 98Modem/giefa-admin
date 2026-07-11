@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowRightOnRectangleIcon,
@@ -731,9 +732,12 @@ export function Header({ onOpenMobileSidebar }: HeaderProps) {
           <Bars3Icon className="h-5 w-5" aria-hidden="true" />
         </button>
 
-        <h1 className="min-w-0 flex-1 truncate text-base font-semibold text-gray-800 dark:text-white sm:text-lg lg:flex-none">
+        <Link
+          href="/dashboard"
+          className="min-w-0 flex-1 truncate text-base font-semibold text-gray-800 transition hover:text-brand-600 dark:text-white dark:hover:text-brand-200 sm:text-lg lg:flex-none"
+        >
           GIEFA Dashboard
-        </h1>
+        </Link>
 
         <div
           ref={searchRef}
