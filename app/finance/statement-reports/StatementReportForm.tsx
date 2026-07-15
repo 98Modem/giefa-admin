@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { createMonthlyFinanceReport } from "@/app/actions/financeReports";
 
 type ExtractedSummary = {
@@ -25,10 +25,39 @@ function formatNumber(value: number | null | undefined) {
   return value === null || value === undefined ? "" : String(value);
 }
 
-export function StatementReportForm({ defaultMonth }: { defaultMonth: string }) {
+function parseInputNumber(value: string) {
+  const number = Number(value.replace(/,/g, ""));
+  return Number.isFinite(number) ? number : 0;
+}
+
+function formatMoney(value: number) {
+  return new Intl.NumberFormat("en-UG", {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: value % 1 === 0 ? 0 : 2,
+  }).format(value);
+}
+
+function getStatementMovement(summary: ExtractedSummary | null, openingBalance: string, closingBalance: string) {
+  if (summary?.periodic_return !== null && summary?.periodic_return !== undefined) {
+    return summary.periodic_return;
+  }
+
+  const opening = parseInputNumber(openingBalance);
+  const closing = parseInputNumber(closingBalance);
+
+  return closing > 0 || opening > 0 ? closing - opening : 0;
+}
+
+export function StatementReportForm({
+  approvedDepositTotals,
+  defaultMonth,
+}: {
+  approvedDepositTotals: Record<string, number>;
+  defaultMonth: string;
+}) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [isPending, startTransition] = useTransition();
-  const [scanStatus, setScanStatus] = useState("Upload a statement to auto-fill the report fields.");
+  const [scanStatus, setScanStatus] = useState("Upload the SBG valuation PDF to fill the month, opening balance, statement return, and closing NAV.");
   const [scanError, setScanError] = useState("");
   const [reportingMonth, setReportingMonth] = useState(defaultMonth);
   const [openingBalance, setOpeningBalance] = useState("");
@@ -38,6 +67,15 @@ export function StatementReportForm({ defaultMonth }: { defaultMonth: string }) 
   const [summary, setSummary] = useState<ExtractedSummary | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [statementFileName, setStatementFileName] = useState("");
+  const approvedDeposits = approvedDepositTotals[reportingMonth] ?? 0;
+  const statementMovement = getStatementMovement(summary, openingBalance, closingBalance);
+  const trueInterest = statementMovement - approvedDeposits;
+  const canShowBreakdown =
+    statementMovement !== 0 || approvedDeposits !== 0 || openingBalance !== "" || closingBalance !== "";
+
+  function setMonth(nextMonth: string) {
+    setReportingMonth(nextMonth);
+  }
 
   function assignDroppedFile(file: File) {
     if (!fileRef.current) return;
@@ -76,14 +114,16 @@ export function StatementReportForm({ defaultMonth }: { defaultMonth: string }) 
     const extracted = result.summary ?? null;
 
     setSummary(extracted);
-    setReportingMonth(extracted?.reporting_month ?? reportingMonth);
+    if (extracted?.reporting_month) {
+      setMonth(extracted.reporting_month);
+    }
     setOpeningBalance(formatNumber(extracted?.opening_balance));
     setClosingBalance(formatNumber(extracted?.closing_balance));
     setStatementRows(result.text ?? "");
     setNotes(
       [
         extracted?.periodic_return !== null && extracted?.periodic_return !== undefined
-          ? `Periodic return: ${extracted.periodic_return}`
+          ? `Statement return: ${extracted.periodic_return}`
           : "",
         extracted?.ytd_return_percent !== null && extracted?.ytd_return_percent !== undefined
           ? `YTD return: ${extracted.ytd_return_percent}%`
@@ -92,8 +132,19 @@ export function StatementReportForm({ defaultMonth }: { defaultMonth: string }) 
         .filter(Boolean)
         .join("\n")
     );
-    setScanStatus(`Auto-filled ${result.found_fields ?? 0} statement fields. Review and edit before generating.`);
+    setScanStatus(`Read ${result.found_fields ?? 0} statement fields. Confirm member deposits, then generate.`);
   }
+
+  const keyFields = useMemo(
+    () => [
+      ["Opening balance", openingBalance ? `UGX ${formatMoney(parseInputNumber(openingBalance))}` : "Not read"],
+      ["Statement return", statementMovement ? `UGX ${formatMoney(statementMovement)}` : "Not read"],
+      ["Approved deposits", `UGX ${formatMoney(approvedDeposits)}`],
+      ["True interest", canShowBreakdown ? `UGX ${formatMoney(trueInterest)}` : "Waiting for statement"],
+      ["Closing NAV", closingBalance ? `UGX ${formatMoney(parseInputNumber(closingBalance))}` : "Not read"],
+    ],
+    [approvedDeposits, canShowBreakdown, closingBalance, openingBalance, statementMovement, trueInterest]
+  );
 
   return (
     <form
@@ -102,21 +153,38 @@ export function StatementReportForm({ defaultMonth }: { defaultMonth: string }) 
           await createMonthlyFinanceReport(formData);
         });
       }}
-      className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-white/15 dark:bg-white/10"
+      className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-white/15 dark:bg-white/10 sm:p-5"
     >
       <div className="flex flex-col gap-1">
         <p className="text-xs font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-300">
           New monthly close
         </p>
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-          Upload statement and generate draft
+          Upload SBG statement
         </h2>
         <p className="text-sm leading-6 text-gray-600 dark:text-gray-200">
-          Upload the SBG valuation PDF and GIEFA immediately fills the
-          reporting month, opening balance, closing balance, return, and notes.
-          Review the values, edit if needed, then generate the report.
+          GIEFA reads the opening balance, statement return, and closing NAV.
+          Confirm member deposits so the report separates cash paid in from real interest earned.
         </p>
       </div>
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        {keyFields.map(([label, value]) => (
+          <div
+            key={label}
+            className="rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-white/15 dark:bg-white/5"
+          >
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300">
+              {label}
+            </p>
+            <p className="mt-2 text-base font-semibold text-gray-900 dark:text-white">
+              {value}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      <input type="hidden" name="statement_return_amount" value={formatNumber(statementMovement)} />
 
       <div className="mt-5 grid gap-4 sm:grid-cols-2">
         <label className="grid gap-2 text-sm font-medium text-gray-800 dark:text-gray-100">
@@ -125,7 +193,7 @@ export function StatementReportForm({ defaultMonth }: { defaultMonth: string }) 
             type="month"
             name="reporting_month"
             value={reportingMonth}
-            onChange={(event) => setReportingMonth(event.target.value)}
+            onChange={(event) => setMonth(event.target.value)}
             required
             className="h-11 rounded-lg border border-gray-200 bg-white px-3 text-gray-900 outline-none focus:border-brand-500 dark:border-white/15 dark:bg-white/10 dark:text-white"
           />
@@ -142,7 +210,7 @@ export function StatementReportForm({ defaultMonth }: { defaultMonth: string }) 
           />
         </label>
         <label className="grid gap-2 text-sm font-medium text-gray-800 dark:text-gray-100">
-          Closing balance
+          Closing balance / NAV
           <input
             name="closing_balance"
             inputMode="decimal"
@@ -152,15 +220,26 @@ export function StatementReportForm({ defaultMonth }: { defaultMonth: string }) 
             className="h-11 rounded-lg border border-gray-200 bg-white px-3 text-gray-900 outline-none focus:border-brand-500 dark:border-white/15 dark:bg-white/10 dark:text-white"
           />
         </label>
-        <label className="grid gap-2 text-sm font-medium text-gray-800 dark:text-gray-100">
-          Manual interest
-          <input
-            name="manual_interest_amount"
-            inputMode="decimal"
-            placeholder="Optional"
-            className="h-11 rounded-lg border border-gray-200 bg-white px-3 text-gray-900 outline-none focus:border-brand-500 dark:border-white/15 dark:bg-white/10 dark:text-white"
-          />
-        </label>
+      </div>
+
+      <div className={`mt-4 rounded-xl border p-4 ${
+        trueInterest < 0
+          ? "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-400/30 dark:bg-rose-500/10 dark:text-rose-100"
+          : "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-100"
+      }`}>
+        <p className="text-sm font-semibold">
+          True interest = statement return - member deposits
+        </p>
+        <p className="mt-2 text-sm">
+          UGX {formatMoney(statementMovement)} - UGX {formatMoney(approvedDeposits)} =
+          {" "}
+          <span className="font-bold">UGX {formatMoney(trueInterest)}</span>
+        </p>
+        {trueInterest < 0 && (
+          <p className="mt-2 text-xs font-semibold">
+            Member deposits are higher than the statement movement. Generate the report, but chairman/admin should review the variance.
+          </p>
+        )}
       </div>
 
       <label className="mt-4 grid gap-2 text-sm font-medium text-gray-800 dark:text-gray-100">
@@ -207,7 +286,7 @@ export function StatementReportForm({ defaultMonth }: { defaultMonth: string }) 
             {isDragging ? "Drop the statement here" : "Drop bank statement anywhere in this box"}
           </p>
           <p className="mt-2 max-w-md text-sm font-normal leading-6 text-gray-500 dark:text-gray-300">
-            PDF, CSV, TSV, or text files are accepted. The whole area is clickable for desktop and mobile users.
+            PDF, CSV, TSV, or text files are accepted.
           </p>
           <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
             <span className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition group-hover:bg-brand-600">
@@ -240,35 +319,14 @@ export function StatementReportForm({ defaultMonth }: { defaultMonth: string }) 
         {scanError && <p className="mt-2 font-semibold text-rose-600 dark:text-rose-200">{scanError}</p>}
       </div>
 
-      {summary && (
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {[
-            ["NAV", summary.net_asset_value],
-            ["Investments", summary.additional_investments],
-            ["Periodic return", summary.periodic_return],
-            ["YTD return %", summary.ytd_return_percent],
-          ].map(([label, value]) => (
-            <div
-              key={label}
-              className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-white/15 dark:bg-white/5"
-            >
-              <p className="text-xs text-gray-500 dark:text-gray-300">{label}</p>
-              <p className="mt-1 text-sm font-semibold text-gray-900 dark:text-white">
-                {value ?? "Not read"}
-              </p>
-            </div>
-          ))}
-        </div>
-      )}
-
       <label className="mt-4 grid gap-2 text-sm font-medium text-gray-800 dark:text-gray-100">
-        Extracted statement text or correction rows
+        Extracted statement text
         <textarea
           name="statement_rows"
-          rows={8}
+          rows={5}
           value={statementRows}
           onChange={(event) => setStatementRows(event.target.value)}
-          placeholder="Upload a PDF to auto-fill this text, or paste SBG valuation text / transaction rows."
+          placeholder="Upload a PDF to auto-fill this area. You can paste statement text here if extraction is difficult."
           className="resize-y rounded-lg border border-gray-200 bg-white px-3 py-3 text-gray-900 outline-none focus:border-brand-500 dark:border-white/15 dark:bg-white/10 dark:text-white"
         />
       </label>
@@ -280,7 +338,7 @@ export function StatementReportForm({ defaultMonth }: { defaultMonth: string }) 
           rows={3}
           value={notes}
           onChange={(event) => setNotes(event.target.value)}
-          placeholder="Notes for exceptions, bank charges, interest, or month-end observations"
+          placeholder="Optional notes for chairman/admin review"
           className="resize-y rounded-lg border border-gray-200 bg-white px-3 py-3 text-gray-900 outline-none focus:border-brand-500 dark:border-white/15 dark:bg-white/10 dark:text-white"
         />
       </label>
