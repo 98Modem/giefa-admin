@@ -64,23 +64,47 @@ function isTouchUploadViewport() {
   return typeof window !== "undefined" && window.matchMedia("(max-width: 640px)").matches;
 }
 
+function currentMonthValue() {
+  return new Date().toISOString().slice(0, 7);
+}
+
+function buildMonthOptions() {
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    year: "numeric",
+  });
+  const today = new Date();
+
+  return Array.from({ length: 15 }, (_, index) => {
+    const offset = 2 - index;
+    const date = new Date(today.getFullYear(), today.getMonth() + offset, 1);
+    const value = date.toISOString().slice(0, 7);
+
+    return {
+      label: formatter.format(date),
+      value,
+    };
+  });
+}
+
 export function DepositProofForm({ action }: DepositProofFormProps) {
   const [isScanning, startScan] = useTransition();
   const [selectedProofs, setSelectedProofs] = useState<SelectedProof[]>([]);
   const [extraction, setExtraction] = useState<Extraction | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
   const [isDraggingProof, setIsDraggingProof] = useState(false);
+  const [contributionMonth, setContributionMonth] = useState(currentMonthValue);
 
   const proofRef = useRef<HTMLInputElement>(null);
   const amountRef = useRef<HTMLInputElement>(null);
   const emergencyRef = useRef<HTMLInputElement>(null);
   const investmentRef = useRef<HTMLInputElement>(null);
-  const monthRef = useRef<HTMLInputElement>(null);
   const dateRef = useRef<HTMLInputElement>(null);
   const referenceRef = useRef<HTMLInputElement>(null);
   const senderRef = useRef<HTMLInputElement>(null);
   const confidenceRef = useRef<HTMLInputElement>(null);
   const notesRef = useRef<HTMLInputElement>(null);
+  const monthOptions = useMemo(() => buildMonthOptions(), []);
 
   const confidenceLabel = useMemo(() => {
     if (!extraction) return "Not scanned";
@@ -158,7 +182,7 @@ export function DepositProofForm({ action }: DepositProofFormProps) {
   function applyExtraction(next: Extraction) {
     setInputValue(amountRef, next.amount);
     if (next.amount) updateDefaultAllocation(next.amount);
-    setInputValue(monthRef, next.contribution_month);
+    if (next.contribution_month) setContributionMonth(next.contribution_month);
     setInputValue(dateRef, next.deposit_date);
     setInputValue(referenceRef, next.bank_reference);
     setInputValue(senderRef, next.sender_name);
@@ -432,13 +456,22 @@ export function DepositProofForm({ action }: DepositProofFormProps) {
 
               <label className="block">
                 <span className={labelClass}>Contribution month</span>
-                <input
-                  ref={monthRef}
+                <select
                   name="contribution_month"
-                  type="month"
+                  value={contributionMonth}
+                  onChange={(event) => setContributionMonth(event.currentTarget.value)}
                   required
-                  className={fieldClass}
-                />
+                  className={`${fieldClass} appearance-none`}
+                >
+                  {!monthOptions.some((option) => option.value === contributionMonth) && (
+                    <option value={contributionMonth}>{contributionMonth}</option>
+                  )}
+                  {monthOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
               </label>
 
               <label className="block">
