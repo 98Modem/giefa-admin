@@ -76,18 +76,102 @@ function buildMonthOptions() {
   const today = new Date();
   const monthsBeforeCurrent = 15 * 12;
   const monthsAfterCurrent = 5 * 12;
-  const totalMonths = monthsBeforeCurrent + monthsAfterCurrent + 1;
 
-  return Array.from({ length: totalMonths }, (_, index) => {
-    const offset = monthsAfterCurrent - index;
+  return Array.from({ length: monthsBeforeCurrent + 1 }, (_, index) => {
+    const offset = -index;
     const date = new Date(today.getFullYear(), today.getMonth() + offset, 1);
     const value = date.toISOString().slice(0, 7);
 
     return {
+      group: index === 0 ? "Current month" : "Previous months",
       label: formatter.format(date),
       value,
     };
+  }).concat(
+    Array.from({ length: monthsAfterCurrent }, (_, index) => {
+      const offset = index + 1;
+      const date = new Date(today.getFullYear(), today.getMonth() + offset, 1);
+      const value = date.toISOString().slice(0, 7);
+
+      return {
+        group: "Future months",
+        label: formatter.format(date),
+        value,
+      };
+    }),
+  );
+}
+
+function formatMonthValue(value: string) {
+  const [year, month] = value.split("-").map(Number);
+  if (!year || !month) return value;
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    year: "numeric",
+  }).format(new Date(year, month - 1, 1));
+}
+
+function getMonthDistance(value: string) {
+  const [year, month] = value.split("-").map(Number);
+  if (!year || !month) return "";
+
+  const today = new Date();
+  const currentIndex = today.getFullYear() * 12 + today.getMonth();
+  const selectedIndex = year * 12 + month - 1;
+  const distance = selectedIndex - currentIndex;
+
+  if (distance === 0) return "Current";
+  if (distance === 1) return "Next month";
+  if (distance > 1) return `In ${distance} months`;
+  if (distance === -1) return "Last month";
+
+  return `${Math.abs(distance)} months ago`;
+}
+
+function monthGroupLabel(group: string) {
+  if (group === "Current month") return "Now";
+  if (group === "Previous months") return "Past contributions";
+  return "Future/prepaid contributions";
+}
+
+function monthGroupDescription(group: string) {
+  if (group === "Current month") return "Most deposits belong here.";
+  if (group === "Previous months") return "Use for late proof or correction.";
+  return "Use when one payment covers upcoming months.";
+}
+
+function buildUnknownMonthOption(value: string) {
+  const today = new Date();
+  const [year, month] = value.split("-").map(Number);
+  const selectedIndex = year * 12 + month - 1;
+  const currentIndex = today.getFullYear() * 12 + today.getMonth();
+  const group = selectedIndex > currentIndex ? "Future months" : "Previous months";
+
+  return {
+    group,
+    label: formatMonthValue(value),
+    value,
+  };
+}
+
+function groupMonthOptions(options: ReturnType<typeof buildMonthOptions>) {
+  const groups: { group: string; options: typeof options }[] = [];
+
+  options.forEach((option) => {
+    const lastGroup = groups[groups.length - 1];
+    if (lastGroup?.group === option.group) {
+      lastGroup.options.push(option);
+      return;
+    }
+
+    groups.push({
+      group: option.group,
+      options: [option],
+    });
   });
+
+  return groups;
 }
 
 export function DepositProofForm({ action }: DepositProofFormProps) {
@@ -110,9 +194,20 @@ export function DepositProofForm({ action }: DepositProofFormProps) {
   const confidenceRef = useRef<HTMLInputElement>(null);
   const notesRef = useRef<HTMLInputElement>(null);
   const monthOptions = useMemo(() => buildMonthOptions(), []);
+  const displayedMonthOptions = useMemo(() => {
+    if (monthOptions.some((option) => option.value === contributionMonth)) {
+      return monthOptions;
+    }
+
+    return [buildUnknownMonthOption(contributionMonth), ...monthOptions];
+  }, [contributionMonth, monthOptions]);
+  const groupedMonthOptions = useMemo(
+    () => groupMonthOptions(displayedMonthOptions),
+    [displayedMonthOptions],
+  );
   const selectedMonthLabel =
-    monthOptions.find((option) => option.value === contributionMonth)?.label ??
-    contributionMonth;
+    displayedMonthOptions.find((option) => option.value === contributionMonth)?.label ??
+    formatMonthValue(contributionMonth);
 
   const confidenceLabel = useMemo(() => {
     if (!extraction) return "Not scanned";
@@ -497,12 +592,17 @@ export function DepositProofForm({ action }: DepositProofFormProps) {
                     aria-label="Choose contribution month"
                     aria-expanded={isMonthPickerOpen}
                     onClick={() => setIsMonthPickerOpen((isOpen) => !isOpen)}
-                    className="flex h-12 w-full items-center justify-between rounded-lg border border-gray-200 bg-white px-3 text-left text-base font-semibold text-gray-900 shadow-sm outline-none transition hover:border-brand-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-white/15 dark:bg-white/10 dark:text-white sm:text-sm"
+                    className="flex h-12 w-full items-center justify-between rounded-xl border border-brand-200 bg-white px-3 text-left text-base font-semibold text-gray-900 shadow-sm outline-none transition hover:border-brand-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-emerald-300/25 dark:bg-white/10 dark:text-white sm:text-sm"
                   >
-                    <span>{selectedMonthLabel}</span>
+                    <span className="flex min-w-0 flex-col leading-tight">
+                      <span className="truncate">{selectedMonthLabel}</span>
+                      <span className="mt-0.5 text-[11px] font-medium text-gray-500 dark:text-gray-300">
+                        {getMonthDistance(contributionMonth)}
+                      </span>
+                    </span>
                     <svg
                       aria-hidden="true"
-                      className={`h-4 w-4 text-gray-500 transition dark:text-gray-300 ${
+                      className={`ml-3 h-4 w-4 shrink-0 text-gray-500 transition dark:text-gray-300 ${
                         isMonthPickerOpen ? "rotate-180" : ""
                       }`}
                       viewBox="0 0 20 20"
@@ -516,42 +616,71 @@ export function DepositProofForm({ action }: DepositProofFormProps) {
                     </svg>
                   </button>
                   {isMonthPickerOpen && (
-                    <div className="absolute left-0 right-0 z-[70] mt-2 max-h-60 overflow-y-auto rounded-xl border border-brand-200 bg-white p-1 shadow-2xl shadow-brand-500/15 ring-1 ring-black/5 dark:border-white/15 dark:bg-gray-950 dark:shadow-black/40 dark:ring-white/10 sm:max-h-72">
-                      {!monthOptions.some((option) => option.value === contributionMonth) && (
-                        <button
-                          type="button"
-                          onClick={() => setIsMonthPickerOpen(false)}
-                          className="mb-1 flex w-full rounded-lg bg-brand-50 px-3 py-3 text-left text-sm font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-100"
-                        >
-                          {contributionMonth}
-                        </button>
-                      )}
-                      {monthOptions.map((option) => {
-                        const isSelected = option.value === contributionMonth;
+                    <div className="absolute left-0 right-0 z-[70] mt-2 overflow-hidden rounded-2xl border border-brand-200 bg-white shadow-2xl shadow-brand-500/15 ring-1 ring-black/5 dark:border-emerald-300/20 dark:bg-gray-950 dark:shadow-black/40 dark:ring-white/10">
+                      <div className="border-b border-gray-100 bg-brand-50/80 px-4 py-3 dark:border-white/10 dark:bg-emerald-500/10">
+                        <p className="text-xs font-bold uppercase tracking-wide text-brand-700 dark:text-emerald-200">
+                          Select contribution month
+                        </p>
+                        <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                          Starts at the current month. Future months are available for prepaid deposits.
+                        </p>
+                      </div>
+                      <div className="max-h-72 overflow-y-auto p-2 sm:max-h-80">
+                        {groupedMonthOptions.map((group) => (
+                          <div key={group.group} className="not-first:mt-2">
+                            <div className="px-2 py-2">
+                              <p className="text-[11px] font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                {monthGroupLabel(group.group)}
+                              </p>
+                              <p className="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400">
+                                {monthGroupDescription(group.group)}
+                              </p>
+                            </div>
+                            <div className="space-y-1">
+                              {group.options.map((option) => {
+                                const isSelected = option.value === contributionMonth;
+                                const distance = getMonthDistance(option.value);
 
-                        return (
-                          <button
-                            key={option.value}
-                            type="button"
-                            onClick={() => {
-                              setContributionMonth(option.value);
-                              setIsMonthPickerOpen(false);
-                            }}
-                            className={`flex w-full items-center justify-between rounded-lg px-3 py-3 text-left text-sm transition ${
-                              isSelected
-                                ? "bg-brand-600 text-white shadow-sm"
-                                : "text-gray-700 hover:bg-brand-50 hover:text-brand-700 dark:text-gray-200 dark:hover:bg-white/10 dark:hover:text-white"
-                            }`}
-                          >
-                            <span>{option.label}</span>
-                            {isSelected && (
-                              <span className="text-xs font-bold uppercase tracking-wide">
-                                Selected
-                              </span>
-                            )}
-                          </button>
-                        );
-                      })}
+                                return (
+                                  <button
+                                    key={option.value}
+                                    type="button"
+                                    onClick={() => {
+                                      setContributionMonth(option.value);
+                                      setIsMonthPickerOpen(false);
+                                    }}
+                                    className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-3 text-left text-sm transition ${
+                                      isSelected
+                                        ? "bg-emerald-600 text-white shadow-sm"
+                                        : "text-gray-800 hover:bg-brand-50 hover:text-brand-700 dark:text-gray-100 dark:hover:bg-white/10 dark:hover:text-white"
+                                    }`}
+                                  >
+                                    <span className="min-w-0">
+                                      <span className="block truncate font-semibold">
+                                        {option.label}
+                                      </span>
+                                      <span
+                                        className={`mt-0.5 block text-xs ${
+                                          isSelected
+                                            ? "text-emerald-50"
+                                            : "text-gray-500 dark:text-gray-400"
+                                        }`}
+                                      >
+                                        {distance}
+                                      </span>
+                                    </span>
+                                    {isSelected && (
+                                      <span className="shrink-0 rounded-full bg-white/20 px-2 py-1 text-[10px] font-bold uppercase tracking-wide">
+                                        Selected
+                                      </span>
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
