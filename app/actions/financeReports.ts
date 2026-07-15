@@ -509,6 +509,12 @@ export async function createMonthlyFinanceReport(formData: FormData) {
       ? resolvedClosingBalance - resolvedOpeningBalance
       : parsedTransactions.reduce((total, row) => total + row.credit, 0));
   const reportVariance = statementMovement - confirmedMemberDepositTotal;
+  const depositsExceedStatement = confirmedMemberDepositTotal > statementMovement;
+  const varianceStatus = depositsExceedStatement
+    ? "deposit_exceeds_statement"
+    : reportVariance > 0
+      ? "statement_exceeds_deposits"
+      : "balanced";
   const matchedDeposits =
     parsedTransactions.length > 0
       ? parsedTransactions
@@ -547,6 +553,8 @@ export async function createMonthlyFinanceReport(formData: FormData) {
         total_deposits: statementMovement,
         approved_member_deposits: matchedDeposits,
         unmatched_deposits: unmatchedDeposits,
+        variance_amount: reportVariance,
+        variance_status: varianceStatus,
         member_count: memberCount,
         exception_count: exceptionCount,
         notes: [
@@ -556,6 +564,9 @@ export async function createMonthlyFinanceReport(formData: FormData) {
             : "",
           `Member deposits: ${confirmedMemberDepositTotal}`,
           `True interest: ${calculatedInterest}`,
+          depositsExceedStatement
+            ? `Flag: approved deposits exceed the SBG statement return by ${Math.abs(reportVariance)}. Chairman/admin review required.`
+            : "",
           confirmedMemberDepositTotal !== approvedSubmissionTotal
             ? `Deposit total manually confirmed by finance. Approved submissions currently total ${approvedSubmissionTotal}.`
             : "",
@@ -580,6 +591,15 @@ export async function createMonthlyFinanceReport(formData: FormData) {
     p_manual_interest_amount:
       manualInterestAmount > 0 ? manualInterestAmount : calculatedInterest,
   });
+
+  if (depositsExceedStatement) {
+    await notifyRoles(supabase, ["chairman", "admin"], {
+      title: "Finance variance needs review",
+      message: `For ${reportingMonth}, approved deposits (${confirmedMemberDepositTotal}) exceed the SBG statement return (${statementMovement}). The report was generated and needs leadership review.`,
+      type: "finance_report_variance",
+      link_url: "/chairman/finance-reports",
+    });
+  }
 
   revalidatePath("/finance/statement-reports");
   revalidatePath("/finance/reports");

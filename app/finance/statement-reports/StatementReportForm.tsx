@@ -70,6 +70,7 @@ export function StatementReportForm({
   const approvedDeposits = approvedDepositTotals[reportingMonth] ?? 0;
   const statementMovement = getStatementMovement(summary, openingBalance, closingBalance);
   const trueInterest = statementMovement - approvedDeposits;
+  const hasDepositVariance = approvedDeposits > statementMovement && statementMovement > 0;
   const canShowBreakdown =
     statementMovement !== 0 || approvedDeposits !== 0 || openingBalance !== "" || closingBalance !== "";
 
@@ -223,7 +224,7 @@ export function StatementReportForm({
       </div>
 
       <div className={`mt-4 rounded-xl border p-4 ${
-        trueInterest < 0
+        hasDepositVariance
           ? "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-400/30 dark:bg-rose-500/10 dark:text-rose-100"
           : "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-100"
       }`}>
@@ -235,9 +236,9 @@ export function StatementReportForm({
           {" "}
           <span className="font-bold">UGX {formatMoney(trueInterest)}</span>
         </p>
-        {trueInterest < 0 && (
+        {hasDepositVariance && (
           <p className="mt-2 text-xs font-semibold">
-            Member deposits are higher than the statement movement. Generate the report, but chairman/admin should review the variance.
+            Approved deposits are higher than the SBG return line. The report can still be generated, but chairman/admin will be flagged to review the variance.
           </p>
         )}
       </div>
