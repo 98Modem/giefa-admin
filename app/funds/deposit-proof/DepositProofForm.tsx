@@ -94,8 +94,10 @@ export function DepositProofForm({ action }: DepositProofFormProps) {
   const [scanError, setScanError] = useState<string | null>(null);
   const [isDraggingProof, setIsDraggingProof] = useState(false);
   const [contributionMonth, setContributionMonth] = useState(currentMonthValue);
+  const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
 
   const proofRef = useRef<HTMLInputElement>(null);
+  const monthPickerRef = useRef<HTMLDivElement>(null);
   const amountRef = useRef<HTMLInputElement>(null);
   const emergencyRef = useRef<HTMLInputElement>(null);
   const investmentRef = useRef<HTMLInputElement>(null);
@@ -105,6 +107,9 @@ export function DepositProofForm({ action }: DepositProofFormProps) {
   const confidenceRef = useRef<HTMLInputElement>(null);
   const notesRef = useRef<HTMLInputElement>(null);
   const monthOptions = useMemo(() => buildMonthOptions(), []);
+  const selectedMonthLabel =
+    monthOptions.find((option) => option.value === contributionMonth)?.label ??
+    contributionMonth;
 
   const confidenceLabel = useMemo(() => {
     if (!extraction) return "Not scanned";
@@ -124,6 +129,27 @@ export function DepositProofForm({ action }: DepositProofFormProps) {
       });
     };
   }, [selectedProofs]);
+
+  useEffect(() => {
+    if (!isMonthPickerOpen) return;
+
+    function handlePointerDown(event: PointerEvent) {
+      if (monthPickerRef.current?.contains(event.target as Node)) return;
+      setIsMonthPickerOpen(false);
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setIsMonthPickerOpen(false);
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isMonthPickerOpen]);
 
   function setProofFiles(files: File[]) {
     setExtraction(null);
@@ -456,22 +482,76 @@ export function DepositProofForm({ action }: DepositProofFormProps) {
 
               <label className="block">
                 <span className={labelClass}>Contribution month</span>
-                <select
-                  name="contribution_month"
-                  value={contributionMonth}
-                  onChange={(event) => setContributionMonth(event.currentTarget.value)}
-                  required
-                  className={`${fieldClass} appearance-none`}
-                >
-                  {!monthOptions.some((option) => option.value === contributionMonth) && (
-                    <option value={contributionMonth}>{contributionMonth}</option>
+                <div ref={monthPickerRef} className="relative mt-2">
+                  <input
+                    type="hidden"
+                    name="contribution_month"
+                    value={contributionMonth}
+                    required
+                  />
+                  <button
+                    type="button"
+                    aria-label="Choose contribution month"
+                    aria-expanded={isMonthPickerOpen}
+                    onClick={() => setIsMonthPickerOpen((isOpen) => !isOpen)}
+                    className="flex h-12 w-full items-center justify-between rounded-lg border border-gray-200 bg-white px-3 text-left text-base font-semibold text-gray-900 shadow-sm outline-none transition hover:border-brand-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-white/15 dark:bg-white/10 dark:text-white sm:text-sm"
+                  >
+                    <span>{selectedMonthLabel}</span>
+                    <svg
+                      aria-hidden="true"
+                      className={`h-4 w-4 text-gray-500 transition dark:text-gray-300 ${
+                        isMonthPickerOpen ? "rotate-180" : ""
+                      }`}
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.168l3.71-3.938a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  </button>
+                  {isMonthPickerOpen && (
+                    <div className="absolute left-0 right-0 z-[70] mt-2 max-h-60 overflow-y-auto rounded-xl border border-brand-200 bg-white p-1 shadow-2xl shadow-brand-500/15 ring-1 ring-black/5 dark:border-white/15 dark:bg-gray-950 dark:shadow-black/40 dark:ring-white/10 sm:max-h-72">
+                      {!monthOptions.some((option) => option.value === contributionMonth) && (
+                        <button
+                          type="button"
+                          onClick={() => setIsMonthPickerOpen(false)}
+                          className="mb-1 flex w-full rounded-lg bg-brand-50 px-3 py-3 text-left text-sm font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-100"
+                        >
+                          {contributionMonth}
+                        </button>
+                      )}
+                      {monthOptions.map((option) => {
+                        const isSelected = option.value === contributionMonth;
+
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => {
+                              setContributionMonth(option.value);
+                              setIsMonthPickerOpen(false);
+                            }}
+                            className={`flex w-full items-center justify-between rounded-lg px-3 py-3 text-left text-sm transition ${
+                              isSelected
+                                ? "bg-brand-600 text-white shadow-sm"
+                                : "text-gray-700 hover:bg-brand-50 hover:text-brand-700 dark:text-gray-200 dark:hover:bg-white/10 dark:hover:text-white"
+                            }`}
+                          >
+                            <span>{option.label}</span>
+                            {isSelected && (
+                              <span className="text-xs font-bold uppercase tracking-wide">
+                                Selected
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
                   )}
-                  {monthOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
+                </div>
               </label>
 
               <label className="block">
