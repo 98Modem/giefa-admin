@@ -79,29 +79,37 @@ function buildMonthOptions() {
   const monthsBeforeCurrent = 15 * 12;
   const monthsAfterCurrent = 5 * 12;
 
-  return Array.from({ length: monthsBeforeCurrent + 1 }, (_, index) => {
-    const offset = -index;
+  const currentMonth = {
+    group: "Current month",
+    label: formatter.format(today),
+    value: today.toISOString().slice(0, 7),
+  };
+
+  const futureMonths = Array.from({ length: monthsAfterCurrent }, (_, index) => {
+    const offset = index + 1;
     const date = new Date(today.getFullYear(), today.getMonth() + offset, 1);
     const value = date.toISOString().slice(0, 7);
 
     return {
-      group: index === 0 ? "Current month" : "Previous months",
+      group: "Future months",
       label: formatter.format(date),
       value,
     };
-  }).concat(
-    Array.from({ length: monthsAfterCurrent }, (_, index) => {
-      const offset = index + 1;
-      const date = new Date(today.getFullYear(), today.getMonth() + offset, 1);
-      const value = date.toISOString().slice(0, 7);
+  });
 
-      return {
-        group: "Future months",
-        label: formatter.format(date),
-        value,
-      };
-    }),
-  );
+  const previousMonths = Array.from({ length: monthsBeforeCurrent }, (_, index) => {
+    const offset = -(index + 1);
+    const date = new Date(today.getFullYear(), today.getMonth() + offset, 1);
+    const value = date.toISOString().slice(0, 7);
+
+    return {
+      group: "Previous months",
+      label: formatter.format(date),
+      value,
+    };
+  });
+
+  return [currentMonth, ...futureMonths, ...previousMonths];
 }
 
 function formatMonthValue(value: string) {
