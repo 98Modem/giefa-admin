@@ -31,6 +31,8 @@ type SelectedProof = {
   previewUrl: string | null;
 };
 
+type ContributionMode = "single" | "multiple";
+
 const fieldClass =
   "mt-2 h-12 w-full rounded-lg border border-gray-200 bg-white px-3 text-base text-gray-900 shadow-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-white/15 dark:bg-white/10 dark:text-white sm:text-sm";
 
@@ -174,6 +176,10 @@ function groupMonthOptions(options: ReturnType<typeof buildMonthOptions>) {
   return groups;
 }
 
+function sortMonthValues(values: string[]) {
+  return [...values].sort((a, b) => a.localeCompare(b));
+}
+
 export function DepositProofForm({ action }: DepositProofFormProps) {
   const [isScanning, startScan] = useTransition();
   const [selectedProofs, setSelectedProofs] = useState<SelectedProof[]>([]);
@@ -181,6 +187,10 @@ export function DepositProofForm({ action }: DepositProofFormProps) {
   const [scanError, setScanError] = useState<string | null>(null);
   const [isDraggingProof, setIsDraggingProof] = useState(false);
   const [contributionMonth, setContributionMonth] = useState(currentMonthValue);
+  const [contributionMode, setContributionMode] = useState<ContributionMode>("single");
+  const [contributionMonths, setContributionMonths] = useState<string[]>([
+    currentMonthValue(),
+  ]);
   const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
 
   const proofRef = useRef<HTMLInputElement>(null);
@@ -208,6 +218,10 @@ export function DepositProofForm({ action }: DepositProofFormProps) {
   const selectedMonthLabel =
     displayedMonthOptions.find((option) => option.value === contributionMonth)?.label ??
     formatMonthValue(contributionMonth);
+  const selectedContributionMonths = useMemo(
+    () => sortMonthValues([...new Set(contributionMonths)]),
+    [contributionMonths],
+  );
 
   const confidenceLabel = useMemo(() => {
     if (!extraction) return "Not scanned";
@@ -306,12 +320,57 @@ export function DepositProofForm({ action }: DepositProofFormProps) {
   function applyExtraction(next: Extraction) {
     setInputValue(amountRef, next.amount);
     if (next.amount) updateDefaultAllocation(next.amount);
-    if (next.contribution_month) setContributionMonth(next.contribution_month);
+    if (next.contribution_month) {
+      setContributionMonth(next.contribution_month);
+      setContributionMonths([next.contribution_month]);
+      setContributionMode("single");
+    }
     setInputValue(dateRef, next.deposit_date);
     setInputValue(referenceRef, next.bank_reference);
     setInputValue(senderRef, next.sender_name);
     setInputValue(confidenceRef, next.confidence);
     setInputValue(notesRef, next.notes);
+  }
+
+  function chooseContributionMonth(value: string) {
+    setContributionMonth(value);
+
+    if (contributionMode === "single") {
+      setContributionMonths([value]);
+      setIsMonthPickerOpen(false);
+      return;
+    }
+
+    setContributionMonths((current) => {
+      if (current.includes(value)) {
+        const next = current.filter((month) => month !== value);
+        return next.length ? next : [value];
+      }
+
+      return sortMonthValues([...current, value]);
+    });
+  }
+
+  function removeContributionMonth(value: string) {
+    setContributionMonths((current) => {
+      const next = current.filter((month) => month !== value);
+      if (next.length) {
+        if (contributionMonth === value) setContributionMonth(next[0]);
+        return next;
+      }
+
+      return current;
+    });
+  }
+
+  function changeContributionMode(nextMode: ContributionMode) {
+    setContributionMode(nextMode);
+
+    if (nextMode === "single") {
+      setContributionMonths([contributionMonth]);
+    } else {
+      setContributionMonths((current) => (current.length ? current : [contributionMonth]));
+    }
   }
 
   function scanProof(files?: File[]) {
@@ -584,9 +643,42 @@ export function DepositProofForm({ action }: DepositProofFormProps) {
                   <input
                     type="hidden"
                     name="contribution_month"
-                    value={contributionMonth}
+                    value={selectedContributionMonths[0] ?? contributionMonth}
                     required
                   />
+                  <input
+                    type="hidden"
+                    name="contribution_mode"
+                    value={contributionMode}
+                  />
+                  <input
+                    type="hidden"
+                    name="contribution_months"
+                    value={JSON.stringify(selectedContributionMonths)}
+                  />
+                  <div className="mb-2 grid grid-cols-2 rounded-xl border border-gray-200 bg-gray-50 p-1 dark:border-white/15 dark:bg-black/20">
+                    {[
+                      { label: "Single", value: "single" as const },
+                      { label: "Multiple", value: "multiple" as const },
+                    ].map((option) => {
+                      const isActive = contributionMode === option.value;
+
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => changeContributionMode(option.value)}
+                          className={`min-h-10 rounded-lg px-3 text-sm font-semibold transition ${
+                            isActive
+                              ? "bg-emerald-600 text-white shadow-sm"
+                              : "text-gray-600 hover:bg-white hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white"
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      );
+                    })}
+                  </div>
                   <button
                     type="button"
                     aria-label="Choose contribution month"
@@ -595,9 +687,17 @@ export function DepositProofForm({ action }: DepositProofFormProps) {
                     className="flex h-12 w-full items-center justify-between rounded-xl border border-brand-200 bg-white px-3 text-left text-base font-semibold text-gray-900 shadow-sm outline-none transition hover:border-brand-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-emerald-300/25 dark:bg-white/10 dark:text-white sm:text-sm"
                   >
                     <span className="flex min-w-0 flex-col leading-tight">
-                      <span className="truncate">{selectedMonthLabel}</span>
+                      <span className="truncate">
+                        {contributionMode === "multiple"
+                          ? `${selectedContributionMonths.length} month${
+                              selectedContributionMonths.length === 1 ? "" : "s"
+                            } selected`
+                          : selectedMonthLabel}
+                      </span>
                       <span className="mt-0.5 text-[11px] font-medium text-gray-500 dark:text-gray-300">
-                        {getMonthDistance(contributionMonth)}
+                        {contributionMode === "multiple"
+                          ? "Tap months below to add or remove"
+                          : getMonthDistance(contributionMonth)}
                       </span>
                     </span>
                     <svg
@@ -619,10 +719,14 @@ export function DepositProofForm({ action }: DepositProofFormProps) {
                     <div className="absolute left-0 right-0 z-[70] mt-2 overflow-hidden rounded-2xl border border-brand-200 bg-white shadow-2xl shadow-brand-500/15 ring-1 ring-black/5 dark:border-emerald-300/20 dark:bg-gray-950 dark:shadow-black/40 dark:ring-white/10">
                       <div className="border-b border-gray-100 bg-brand-50/80 px-4 py-3 dark:border-white/10 dark:bg-emerald-500/10">
                         <p className="text-xs font-bold uppercase tracking-wide text-brand-700 dark:text-emerald-200">
-                          Select contribution month
+                          {contributionMode === "multiple"
+                            ? "Select covered months"
+                            : "Select contribution month"}
                         </p>
                         <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">
-                          Starts at the current month. Future months are available for prepaid deposits.
+                          {contributionMode === "multiple"
+                            ? "Tap any month to include it. Use this for one deposit covering several months."
+                            : "Starts at the current month. Future months are available for prepaid deposits."}
                         </p>
                       </div>
                       <div className="max-h-72 overflow-y-auto p-2 sm:max-h-80">
@@ -638,17 +742,17 @@ export function DepositProofForm({ action }: DepositProofFormProps) {
                             </div>
                             <div className="space-y-1">
                               {group.options.map((option) => {
-                                const isSelected = option.value === contributionMonth;
+                                const isSelected =
+                                  contributionMode === "multiple"
+                                    ? selectedContributionMonths.includes(option.value)
+                                    : option.value === contributionMonth;
                                 const distance = getMonthDistance(option.value);
 
                                 return (
                                   <button
                                     key={option.value}
                                     type="button"
-                                    onClick={() => {
-                                      setContributionMonth(option.value);
-                                      setIsMonthPickerOpen(false);
-                                    }}
+                                    onClick={() => chooseContributionMonth(option.value)}
                                     className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-3 text-left text-sm transition ${
                                       isSelected
                                         ? "bg-emerald-600 text-white shadow-sm"
@@ -681,9 +785,52 @@ export function DepositProofForm({ action }: DepositProofFormProps) {
                           </div>
                         ))}
                       </div>
+                      {contributionMode === "multiple" && (
+                        <div className="border-t border-gray-100 bg-gray-50/80 p-3 dark:border-white/10 dark:bg-white/5">
+                          <button
+                            type="button"
+                            onClick={() => setIsMonthPickerOpen(false)}
+                            className="h-10 w-full rounded-lg bg-emerald-600 text-sm font-semibold text-white transition hover:bg-emerald-700"
+                          >
+                            Done selecting months
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
+                {contributionMode === "multiple" && (
+                  <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50/80 p-3 dark:border-emerald-300/20 dark:bg-emerald-500/10">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-200">
+                        Split months
+                      </p>
+                      <p className="text-xs text-gray-600 dark:text-gray-300">
+                        Total splits equally on submit
+                      </p>
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {selectedContributionMonths.map((month) => (
+                        <span
+                          key={month}
+                          className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-2 text-xs font-semibold text-gray-800 shadow-sm ring-1 ring-emerald-200 dark:bg-white/10 dark:text-white dark:ring-emerald-300/20"
+                        >
+                          {formatMonthValue(month)}
+                          {selectedContributionMonths.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removeContributionMonth(month)}
+                              className="rounded-full px-1 text-gray-500 hover:bg-gray-100 hover:text-rose-600 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-rose-200"
+                              aria-label={`Remove ${formatMonthValue(month)}`}
+                            >
+                              ×
+                            </button>
+                          )}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </label>
 
               <label className="block">

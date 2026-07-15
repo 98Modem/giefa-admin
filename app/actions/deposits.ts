@@ -13,6 +13,41 @@ function getNumber(formData: FormData, key: string) {
   return Number.isFinite(value) ? value : 0;
 }
 
+function isMonthValue(value: string) {
+  return /^\d{4}-\d{2}$/.test(value);
+}
+
+function parseContributionMonths(formData: FormData, fallbackMonth: string) {
+  const mode = getString(formData, "contribution_mode");
+  const rawMonths = getString(formData, "contribution_months");
+
+  if (mode !== "multiple") {
+    return fallbackMonth && isMonthValue(fallbackMonth) ? [fallbackMonth] : [];
+  }
+
+  try {
+    const parsed = JSON.parse(rawMonths);
+    if (!Array.isArray(parsed)) return [];
+
+    return [...new Set(parsed)]
+      .filter((month): month is string => typeof month === "string" && isMonthValue(month))
+      .sort((a, b) => a.localeCompare(b));
+  } catch {
+    return fallbackMonth && isMonthValue(fallbackMonth) ? [fallbackMonth] : [];
+  }
+}
+
+function splitAmountAcrossMonths(total: number, count: number) {
+  if (count <= 1) return [total];
+
+  const base = Math.floor(total / count);
+  const remainder = total - base * count;
+
+  return Array.from({ length: count }, (_, index) =>
+    base + (index < remainder ? 1 : 0)
+  );
+}
+
 function assertOk(error: { message: string } | null, action: string) {
   if (error) {
     throw new Error(`${action} failed: ${error.message}`);
@@ -48,6 +83,7 @@ export async function submitDepositProof(formData: FormData) {
   const emergencyAmount = getNumber(formData, "emergency_amount");
   const investmentAmount = getNumber(formData, "investment_amount");
   const contributionMonth = getString(formData, "contribution_month");
+  const contributionMonths = parseContributionMonths(formData, contributionMonth);
   const depositDate = getString(formData, "deposit_date");
   const bankReference = getString(formData, "bank_reference");
   const senderName = getString(formData, "sender_name");
@@ -63,7 +99,7 @@ export async function submitDepositProof(formData: FormData) {
     throw new Error("Emergency and investment allocations must equal the total deposit.");
   }
 
-  if (!contributionMonth || !depositDate) {
+  if (!contributionMonths.length || !depositDate) {
     throw new Error("Contribution month and deposit date are required.");
   }
 
@@ -109,14 +145,23 @@ export async function submitDepositProof(formData: FormData) {
     uploadedProofPaths.length > 0
       ? `Uploaded proof files:\n${uploadedProofPaths.map((path, index) => `${index + 1}. ${path}`).join("\n")}`
       : "";
-  const extractedText = [extractionNotes, proofFileNote].filter(Boolean).join("\n\n") || null;
-
-  const { error } = await supabase.from("deposit_submissions").insert({
+  const splitNote =
+    contributionMonths.length > 1
+      ? `Split deposit allocation:\n${contributionMonths
+          .map((month, index) => `${index + 1}. ${month}`)
+          .join("\n")}`
+      : "";
+  const extractedText =
+    [extractionNotes, splitNote, proofFileNote].filter(Boolean).join("\n\n") ||
+    null;
+  const emergencySplits = splitAmountAcrossMonths(emergencyAmount, contributionMonths.length);
+  const investmentSplits = splitAmountAcrossMonths(investmentAmount, contributionMonths.length);
+  const submissions = contributionMonths.map((month, index) => ({
     member_id: member.id,
-    contribution_month: contributionMonth,
-    amount: totalAmount,
-    emergency_amount: emergencyAmount,
-    investment_amount: investmentAmount,
+    contribution_month: month,
+    amount: emergencySplits[index] + investmentSplits[index],
+    emergency_amount: emergencySplits[index],
+    investment_amount: investmentSplits[index],
     deposit_date: depositDate,
     bank_reference: bankReference || null,
     sender_name:
@@ -130,7 +175,9 @@ export async function submitDepositProof(formData: FormData) {
         ? extractionConfidence
         : null,
     status: "submitted",
-  });
+  }));
+
+  const { error } = await supabase.from("deposit_submissions").insert(submissions);
   assertOk(error, "Submit deposit proof");
 
   revalidatePath("/funds/deposit-proof");
