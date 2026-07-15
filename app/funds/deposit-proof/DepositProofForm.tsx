@@ -74,9 +74,12 @@ function buildMonthOptions() {
     year: "numeric",
   });
   const today = new Date();
+  const monthsBeforeCurrent = 15 * 12;
+  const monthsAfterCurrent = 5 * 12;
+  const totalMonths = monthsBeforeCurrent + monthsAfterCurrent + 1;
 
-  return Array.from({ length: 15 }, (_, index) => {
-    const offset = 2 - index;
+  return Array.from({ length: totalMonths }, (_, index) => {
+    const offset = monthsAfterCurrent - index;
     const date = new Date(today.getFullYear(), today.getMonth() + offset, 1);
     const value = date.toISOString().slice(0, 7);
 
