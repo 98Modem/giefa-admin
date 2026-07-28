@@ -36,6 +36,11 @@ type AssistantPosition = {
   y: number;
 };
 
+type AssistantSize = {
+  width: number;
+  height: number;
+};
+
 const starterPrompts = [
   "What is my current role?",
   "Explain my contribution status",
@@ -84,7 +89,7 @@ function getStoredPosition() {
 
 function clampPosition(
   position: AssistantPosition,
-  size: { width: number; height: number }
+  size: AssistantSize
 ) {
   if (typeof window === "undefined") return position;
 
@@ -116,6 +121,34 @@ function getAssistantSize(open: boolean) {
   };
 }
 
+function getPanelPositionFromLauncher(
+  launcherPosition: AssistantPosition,
+  launcherSize: AssistantSize,
+  panelSize: AssistantSize
+) {
+  return clampPosition(
+    {
+      x: launcherPosition.x + launcherSize.width - panelSize.width,
+      y: launcherPosition.y + launcherSize.height - panelSize.height,
+    },
+    panelSize
+  );
+}
+
+function getLauncherPositionFromPanel(
+  panelPosition: AssistantPosition,
+  launcherSize: AssistantSize,
+  panelSize: AssistantSize
+) {
+  return clampPosition(
+    {
+      x: panelPosition.x + panelSize.width - launcherSize.width,
+      y: panelPosition.y + panelSize.height - launcherSize.height,
+    },
+    launcherSize
+  );
+}
+
 export function GiefaAssistant({ destinations }: GiefaAssistantProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -134,6 +167,9 @@ export function GiefaAssistant({ destinations }: GiefaAssistantProps) {
     },
   ]);
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const messagesScrollRef = useRef<HTMLDivElement | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const dragFrameRef = useRef<number | null>(null);
   const dragStateRef = useRef<{
     pointerId: number;
     startX: number;
@@ -141,11 +177,17 @@ export function GiefaAssistant({ destinations }: GiefaAssistantProps) {
     originX: number;
     originY: number;
     moved: boolean;
+    nextPosition: AssistantPosition;
   } | null>(null);
   const ignoreNextClickRef = useRef(false);
 
   const quickLinks = useMemo(() => destinations.slice(0, 4), [destinations]);
   const hasConversationStarted = messages.some((message) => message.role === "user");
+  const launcherSize = getAssistantSize(false);
+  const panelSize = getAssistantSize(true);
+  const displayPosition = open
+    ? getPanelPositionFromLauncher(position, launcherSize, panelSize)
+    : clampPosition(position, launcherSize);
 
   useEffect(() => {
     const initial = getStoredPosition() ?? getDefaultPosition();
@@ -155,14 +197,9 @@ export function GiefaAssistant({ destinations }: GiefaAssistantProps) {
 
   useEffect(() => {
     if (!positionReady) return;
-    setPosition((current) => clampPosition(current, getAssistantSize(open)));
-  }, [open, positionReady]);
-
-  useEffect(() => {
-    if (!positionReady) return;
 
     const handleResize = () => {
-      setPosition((current) => clampPosition(current, getAssistantSize(open)));
+      setPosition((current) => clampPosition(current, getAssistantSize(false)));
     };
 
     window.addEventListener("resize", handleResize);
@@ -172,32 +209,64 @@ export function GiefaAssistant({ destinations }: GiefaAssistantProps) {
       window.removeEventListener("resize", handleResize);
       window.removeEventListener("orientationchange", handleResize);
     };
-  }, [open, positionReady]);
+  }, [positionReady]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      messagesEndRef.current?.scrollIntoView({
+        block: "end",
+        behavior: "smooth",
+      });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [messages, loading, open]);
+
+  useEffect(() => {
+    return () => {
+      if (dragFrameRef.current !== null) {
+        window.cancelAnimationFrame(dragFrameRef.current);
+      }
+    };
+  }, []);
 
   function savePosition(nextPosition: AssistantPosition) {
     setPosition(nextPosition);
     window.localStorage.setItem(positionStorageKey, JSON.stringify(nextPosition));
   }
 
+  function schedulePosition(nextPosition: AssistantPosition) {
+    if (dragFrameRef.current !== null) {
+      window.cancelAnimationFrame(dragFrameRef.current);
+    }
+
+    dragFrameRef.current = window.requestAnimationFrame(() => {
+      setPosition(nextPosition);
+      dragFrameRef.current = null;
+    });
+  }
+
   function startDrag(event: PointerEvent<HTMLElement>) {
     if (event.button !== 0) return;
 
     const target = event.target as HTMLElement;
-    if (
-      target.closest("input, button, a, textarea, select") &&
-      target !== event.currentTarget
-    ) {
+    const interactiveTarget = target.closest("input, button, a, textarea, select");
+    if (interactiveTarget && interactiveTarget !== event.currentTarget) {
       return;
     }
 
+    event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
     dragStateRef.current = {
       pointerId: event.pointerId,
       startX: event.clientX,
       startY: event.clientY,
-      originX: position.x,
-      originY: position.y,
+      originX: displayPosition.x,
+      originY: displayPosition.y,
       moved: false,
+      nextPosition: position,
     };
   }
 
@@ -213,29 +282,43 @@ export function GiefaAssistant({ destinations }: GiefaAssistantProps) {
       ignoreNextClickRef.current = true;
     }
 
-    setPosition(
-      clampPosition(
-        {
-          x: dragState.originX + deltaX,
-          y: dragState.originY + deltaY,
-        },
-        getAssistantSize(open)
-      )
-    );
+    const nextDisplayPosition = {
+      x: dragState.originX + deltaX,
+      y: dragState.originY + deltaY,
+    };
+
+    const nextPosition = open
+      ? getLauncherPositionFromPanel(
+          clampPosition(nextDisplayPosition, panelSize),
+          launcherSize,
+          panelSize
+        )
+      : clampPosition(nextDisplayPosition, launcherSize);
+
+    dragState.nextPosition = nextPosition;
+    schedulePosition(nextPosition);
   }
 
   function endDrag(event: PointerEvent<HTMLElement>) {
     const dragState = dragStateRef.current;
     if (!dragState || dragState.pointerId !== event.pointerId) return;
 
-    const nextPosition = clampPosition(
-      {
-        x: dragState.originX + event.clientX - dragState.startX,
-        y: dragState.originY + event.clientY - dragState.startY,
-      },
-      getAssistantSize(open)
-    );
+    const nextDisplayPosition = {
+      x: dragState.originX + event.clientX - dragState.startX,
+      y: dragState.originY + event.clientY - dragState.startY,
+    };
+    const nextPosition = open
+      ? getLauncherPositionFromPanel(
+          clampPosition(nextDisplayPosition, panelSize),
+          launcherSize,
+          panelSize
+        )
+      : clampPosition(nextDisplayPosition, launcherSize);
     dragStateRef.current = null;
+    if (dragFrameRef.current !== null) {
+      window.cancelAnimationFrame(dragFrameRef.current);
+      dragFrameRef.current = null;
+    }
     savePosition(nextPosition);
 
     window.setTimeout(() => {
@@ -253,6 +336,9 @@ export function GiefaAssistant({ destinations }: GiefaAssistantProps) {
       ...current,
       { id: uniqueId(), role: "user", text: prompt },
     ]);
+    window.requestAnimationFrame(() => {
+      messagesEndRef.current?.scrollIntoView({ block: "end", behavior: "smooth" });
+    });
 
     try {
       const response = await fetch("/api/giefa-assistant", {
@@ -309,12 +395,12 @@ export function GiefaAssistant({ destinations }: GiefaAssistantProps) {
   }
 
   return (
-    <div
-      className="fixed z-[70]"
-      ref={panelRef}
+      <div
+        className="fixed z-[99999]"
+        ref={panelRef}
       style={{
-        left: positionReady ? position.x : undefined,
-        top: positionReady ? position.y : undefined,
+        left: positionReady ? displayPosition.x : undefined,
+        top: positionReady ? displayPosition.y : undefined,
         right: positionReady ? "auto" : 12,
         bottom: positionReady ? "auto" : 16,
       }}
@@ -333,7 +419,7 @@ export function GiefaAssistant({ destinations }: GiefaAssistantProps) {
           className="group flex h-14 touch-none select-none items-center gap-3 rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface-strong)] px-3 text-left shadow-2xl ring-1 ring-black/10 transition hover:-translate-y-0.5 hover:shadow-brand-500/20 active:cursor-grabbing dark:ring-white/10 sm:h-16 sm:px-4"
           aria-expanded={open}
           aria-label="Open or drag Ask GIEFA"
-          title="Drag to move Ask GIEFA"
+          title="Hold anywhere and drag Ask GIEFA"
         >
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-500 text-white shadow-lg shadow-brand-500/30 transition group-hover:scale-105 sm:h-11 sm:w-11">
             <ChatBubbleLeftRightIcon className="h-5 w-5 sm:h-6 sm:w-6" aria-hidden="true" />
@@ -350,14 +436,14 @@ export function GiefaAssistant({ destinations }: GiefaAssistantProps) {
       )}
 
       {open && (
-        <div className="flex h-[min(680px,calc(100vh-1rem))] w-[calc(100vw-7rem)] max-w-[440px] flex-col overflow-hidden rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface-strong)] shadow-2xl ring-1 ring-black/10 dark:ring-white/10 sm:w-[min(440px,calc(100vw-1.5rem))]">
+        <div className="flex h-[min(700px,calc(100vh-1rem))] w-[calc(100vw-2rem)] max-w-[460px] flex-col overflow-hidden rounded-[1.35rem] border border-[var(--app-border)] bg-[var(--app-surface-strong)] shadow-2xl ring-1 ring-black/10 backdrop-blur-xl dark:ring-white/10 sm:w-[min(460px,calc(100vw-1.5rem))]">
           <div
-            className="flex touch-none select-none items-start justify-between gap-3 border-b border-gray-100 px-4 py-4 dark:border-gray-800"
+            className="flex touch-none select-none items-start justify-between gap-3 border-b border-gray-100 bg-gradient-to-r from-brand-500/10 via-transparent to-transparent px-4 py-4 dark:border-gray-800"
             onPointerDown={startDrag}
             onPointerMove={moveDrag}
             onPointerUp={endDrag}
             onPointerCancel={endDrag}
-            title="Drag to move Ask GIEFA"
+            title="Hold this header and drag Ask GIEFA"
           >
             <div className="flex items-start gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-500 text-white shadow-lg shadow-brand-500/20">
@@ -392,7 +478,10 @@ export function GiefaAssistant({ destinations }: GiefaAssistantProps) {
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4">
+          <div
+            ref={messagesScrollRef}
+            className="min-h-0 flex-1 space-y-3 overflow-y-auto scroll-smooth px-4 py-4"
+          >
             {messages.map((message) => (
               <div
                 key={message.id}
@@ -425,9 +514,13 @@ export function GiefaAssistant({ destinations }: GiefaAssistantProps) {
 
             {loading && (
               <div className="mr-8 rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface)] px-4 py-3 text-sm font-medium text-gray-500 dark:text-gray-300">
-                Checking your GIEFA context...
+                <span className="inline-flex items-center gap-2">
+                  <span className="h-2 w-2 animate-pulse rounded-full bg-brand-500" />
+                  Checking your GIEFA context...
+                </span>
               </div>
             )}
+            <div ref={messagesEndRef} aria-hidden="true" />
           </div>
 
           <div className="border-t border-gray-100 bg-gray-50/80 px-4 py-4 dark:border-gray-800 dark:bg-white/5">
