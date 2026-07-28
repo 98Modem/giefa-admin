@@ -13,7 +13,7 @@ const roleProtectedRoutes: {
   },
   {
     prefix: "/finance",
-    allowedRoles: ["treasurer", "admin"],
+    allowedRoles: ["treasurer", "chairman", "admin"],
   },
   {
     prefix: "/governance",
@@ -21,7 +21,7 @@ const roleProtectedRoutes: {
   },
   {
     prefix: "/system",
-    allowedRoles: ["admin"],
+    allowedRoles: ["chairman", "admin"],
   },
   {
     prefix: "/chairman",
@@ -29,11 +29,11 @@ const roleProtectedRoutes: {
   },
   {
     prefix: "/funds/pending",
-    allowedRoles: ["treasurer", "admin"],
+    allowedRoles: ["treasurer", "chairman", "admin"],
   },
   {
     prefix: "/funds/approved",
-    allowedRoles: ["treasurer", "admin"],
+    allowedRoles: ["treasurer", "chairman", "admin"],
   },
 ];
 
