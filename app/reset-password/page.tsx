@@ -29,7 +29,7 @@ export default function ResetPasswordPage() {
 
         if (exchangeError) {
           setError(
-            "This reset link cannot be completed in this browser. Please request a new password reset email and open the latest link."
+            "This reset link could not be verified. Please request a new password reset email and open the latest link in the same browser."
           );
           setMessage("");
           return;
