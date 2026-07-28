@@ -19,6 +19,36 @@ const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
 
 type Row = string[];
 
+const DEFAULT_GEMINI_MODEL = "gemini-flash-latest";
+
+function normalizeGeminiModel(model: string | null | undefined) {
+  const value = model?.trim();
+  if (!value || value === "gemini-3.5-flash") return DEFAULT_GEMINI_MODEL;
+  return value.replace(/^models\//, "");
+}
+
+function extractGeminiText(response: unknown) {
+  if (!response || typeof response !== "object" || !("candidates" in response)) return "";
+  const candidates = response.candidates;
+  if (!Array.isArray(candidates)) return "";
+
+  return candidates
+    .flatMap((candidate) => {
+      if (!candidate || typeof candidate !== "object" || !("content" in candidate)) return [];
+      const content = candidate.content;
+      if (!content || typeof content !== "object" || !("parts" in content)) return [];
+      const parts = content.parts;
+      if (!Array.isArray(parts)) return [];
+
+      return parts.map((part) => {
+        if (!part || typeof part !== "object" || !("text" in part)) return "";
+        return typeof part.text === "string" ? part.text : "";
+      });
+    })
+    .join("\n")
+    .trim();
+}
+
 function cleanText(value: string | number | null | undefined) {
   return String(value ?? "")
     .replace(/[–—]/g, "-")
@@ -356,47 +386,60 @@ async function generateGeminiFinanceInsights(input: InsightInput) {
   if (!apiKey) return [];
 
   try {
-    const response = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
-      method: "POST",
-      headers: {
-        "x-goog-api-key": apiKey,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model:
-          process.env.GEMINI_FINANCE_REPORT_MODEL ||
-          process.env.GEMINI_GIEFA_ASSISTANT_MODEL ||
-          "gemini-3.5-flash",
-        system_instruction:
-          "You are GIEFA's finance reporting assistant. Produce concise governance-safe insights for a savings cooperative monthly report. Do not give investment advice or promises. Focus on participation, reconciliation, variance risk, cashflow discipline, and leadership next actions. Return 4 to 6 plain bullet sentences only.",
-        input: JSON.stringify({
-          reporting_month: input.reportingMonth,
-          active_member_count: input.activeMemberCount,
-          contributor_count: input.contributorCount,
-          approved_deposits: input.approvedDeposits,
-          statement_movement: input.statementMovement,
-          interest_amount: input.interestAmount,
-          opening_balance: input.openingBalance,
-          closing_balance: input.closingBalance,
-          growth_rate_percent: input.growthRate,
-          pending_proofs: input.pendingCount,
-          exception_count: input.exceptionCount,
-          variance_status: input.varianceStatus,
-          previous_reports: input.previousReports.slice(0, 6),
-        }),
-        generation_config: {
-          temperature: 0.35,
-          thinking_level: "low",
+    const model = normalizeGeminiModel(
+      process.env.GEMINI_FINANCE_REPORT_MODEL ||
+        process.env.GEMINI_GIEFA_ASSISTANT_MODEL
+    );
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
-      }),
-    });
+        body: JSON.stringify({
+          systemInstruction: {
+            parts: [
+              {
+                text: "You are GIEFA's finance reporting assistant. Produce concise governance-safe insights for a savings cooperative monthly report. Do not give investment advice or promises. Focus on participation, reconciliation, variance risk, cashflow discipline, and leadership next actions. Return 4 to 6 plain bullet sentences only.",
+              },
+            ],
+          },
+          contents: [
+            {
+              role: "user",
+              parts: [
+                {
+                  text: JSON.stringify({
+                    reporting_month: input.reportingMonth,
+                    active_member_count: input.activeMemberCount,
+                    contributor_count: input.contributorCount,
+                    approved_deposits: input.approvedDeposits,
+                    statement_movement: input.statementMovement,
+                    interest_amount: input.interestAmount,
+                    opening_balance: input.openingBalance,
+                    closing_balance: input.closingBalance,
+                    growth_rate_percent: input.growthRate,
+                    pending_proofs: input.pendingCount,
+                    exception_count: input.exceptionCount,
+                    variance_status: input.varianceStatus,
+                    previous_reports: input.previousReports.slice(0, 6),
+                  }),
+                },
+              ],
+            },
+          ],
+          generationConfig: {
+            temperature: 0.35,
+          },
+        }),
+      }
+    );
 
     if (!response.ok) return [];
 
-    const result = (await response.json()) as {
-      output_text?: string;
-    };
-    return parseInsightLines(result.output_text);
+    const result = await response.json();
+    return parseInsightLines(extractGeminiText(result));
   } catch {
     return [];
   }

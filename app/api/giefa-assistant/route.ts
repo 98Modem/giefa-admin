@@ -231,6 +231,36 @@ function sanitizeHistory(value: unknown): AssistantHistoryMessage[] {
 const GIEFA_ASSISTANT_SYSTEM_PROMPT =
   "You are GIEFA Assistant inside the Graduate Investment and Emergency Fund Association Dashboard. Respond like a capable, calm human operations assistant, not a keyword bot. Read the user's whole paragraph, infer what they mean, and answer the real question first in natural language. If the user asks about their role, status, contribution, report, or where to go, use current_user and finance_context directly before suggesting links. Do not lead with legalistic refusals. Only mention limits when the user asks you to perform a protected action. Help with smart navigation, contribution status, pending approval, suspended status, finance explanations, report preparation, member support, and governance guidance. Use the supplied finance_context when answering finance/report questions. For monthly report narratives, use clear association language: group summary, member deposits, statement movement, interest/variance, exceptions, and next actions. You must not claim to approve, reject, delete, suspend, restore, transfer money, or change records. For protected operations, explain where to go and who must perform it. Only suggest links from the allowed_destinations list. Return JSON only.";
 
+const DEFAULT_GEMINI_MODEL = "gemini-flash-latest";
+
+function normalizeGeminiModel(model: string | null | undefined) {
+  const value = model?.trim();
+  if (!value || value === "gemini-3.5-flash") return DEFAULT_GEMINI_MODEL;
+  return value.replace(/^models\//, "");
+}
+
+function extractGeminiText(response: unknown) {
+  if (!response || typeof response !== "object" || !("candidates" in response)) return "";
+  const candidates = response.candidates;
+  if (!Array.isArray(candidates)) return "";
+
+  return candidates
+    .flatMap((candidate) => {
+      if (!candidate || typeof candidate !== "object" || !("content" in candidate)) return [];
+      const content = candidate.content;
+      if (!content || typeof content !== "object" || !("parts" in content)) return [];
+      const parts = content.parts;
+      if (!Array.isArray(parts)) return [];
+
+      return parts.map((part) => {
+        if (!part || typeof part !== "object" || !("text" in part)) return "";
+        return typeof part.text === "string" ? part.text : "";
+      });
+    })
+    .join("\n")
+    .trim();
+}
+
 function buildAssistantPayload(input: AiAssistantInput) {
   return {
     question: input.question,
@@ -261,30 +291,39 @@ async function callGeminiAssistant(input: AiAssistantInput, fallback: AssistantR
   if (!apiKey) return null;
 
   try {
-    const response = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
-      method: "POST",
-      headers: {
-        "x-goog-api-key": apiKey,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model:
-          process.env.GEMINI_GIEFA_ASSISTANT_MODEL ||
-          process.env.GEMINI_FINANCE_REPORT_MODEL ||
-          "gemini-3.5-flash",
-        system_instruction: GIEFA_ASSISTANT_SYSTEM_PROMPT,
-        input: JSON.stringify(buildAssistantPayload(input)),
-        generation_config: {
-          temperature: 0.45,
-          thinking_level: "low",
+    const model = normalizeGeminiModel(
+      process.env.GEMINI_GIEFA_ASSISTANT_MODEL ||
+        process.env.GEMINI_FINANCE_REPORT_MODEL
+    );
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
-      }),
-    });
+        body: JSON.stringify({
+          systemInstruction: {
+            parts: [{ text: GIEFA_ASSISTANT_SYSTEM_PROMPT }],
+          },
+          contents: [
+            {
+              role: "user",
+              parts: [{ text: JSON.stringify(buildAssistantPayload(input)) }],
+            },
+          ],
+          generationConfig: {
+            temperature: 0.45,
+            responseMimeType: "application/json",
+          },
+        }),
+      }
+    );
 
     if (!response.ok) return null;
 
-    const result = (await response.json()) as { output_text?: string };
-    return parseAssistantOutput(result.output_text ?? "", fallback);
+    const result = await response.json();
+    return parseAssistantOutput(extractGeminiText(result), fallback);
   } catch {
     return null;
   }
