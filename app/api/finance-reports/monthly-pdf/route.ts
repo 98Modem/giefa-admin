@@ -73,6 +73,35 @@ function percent(value: number) {
   return `${value.toFixed(2)}%`;
 }
 
+function statusLabel(value: string | null | undefined) {
+  if (!value) return "Draft";
+
+  return value
+    .split("_")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function compactFinanceNotes(value: string | null | undefined) {
+  const cleaned = cleanText(value);
+  if (!cleaned.trim()) return "";
+
+  const seen = new Set<string>();
+  const parts = cleaned
+    .split(/(?=\b(?:Periodic return|Manual monthly interest|YTD return|Finance note|Note)\b)|[.;]\s+/i)
+    .map((part) => part.trim().replace(/\s+/g, " "))
+    .filter(Boolean)
+    .filter((part) => {
+      const key = part.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+  return parts.slice(0, 5).join("; ");
+}
+
 function escapePdf(value: string) {
   return cleanText(value).replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
 }
@@ -352,19 +381,19 @@ function fallbackFinanceInsights(input: InsightInput) {
       ? ((input.interestAmount - previousInterest) / previousInterest) * 100
       : null;
   const insights = [
-    `Participation is ${percent(participation)} (${input.contributorCount} of ${input.activeMemberCount || "all"} approved members). Finance should follow up with inactive members before the next contribution window closes.`,
-    `The fund earned ${money(input.interestAmount)} this month, equal to ${percent(input.growthRate)} of opening balance. This should be reviewed against the SBG statement before the report is finalized.`,
+    `${input.contributorCount} of ${input.activeMemberCount || "all"} approved members contributed this month (${percent(participation)} participation).`,
+    `The investment fund earned ${money(input.interestAmount)}, equal to ${percent(input.growthRate)} of the opening balance.`,
     interestTrend === null
-      ? "There is not enough prior-month return data to calculate a reliable month-on-month interest trend."
-      : `Interest changed by ${percent(interestTrend)} compared with the previous available report, so leadership should check whether the change came from higher balances, late deposits, or market movement.`,
+      ? "There is not enough previous report data to compare this month's return with the prior month."
+      : `Interest changed by ${percent(interestTrend)} compared with the previous available report.`,
     input.pendingCount > 0
-      ? `${input.pendingCount} pending deposit proof item(s) are excluded from member ledgers and interest allocation until finance approves them.`
-      : "There are no pending deposit proofs for this month, reducing reconciliation risk.",
+      ? `${input.pendingCount} deposit proof item(s) still need finance review before they can enter member ledgers.`
+      : "No pending deposit proofs are waiting for this month.",
   ];
 
   if (input.exceptionCount > 0 || input.varianceStatus === "deposit_exceeds_statement") {
     insights.push(
-      "The report has exceptions or a variance flag. It can be generated for review, but chairman/admin should approve corrections before final presentation."
+      "This report has an exception or variance flag and should be reviewed by chairman/admin before final approval."
     );
   }
 
@@ -401,7 +430,7 @@ async function generateGeminiFinanceInsights(input: InsightInput) {
           systemInstruction: {
             parts: [
               {
-                text: "You are GIEFA's finance reporting assistant. Produce concise governance-safe insights for a savings cooperative monthly report. Do not give investment advice or promises. Focus on participation, reconciliation, variance risk, cashflow discipline, and leadership next actions. Return 4 to 6 plain bullet sentences only.",
+                text: "You are GIEFA's finance reporting assistant. Produce concise, plain-language treasurer notes for a savings cooperative monthly report. Do not mention AI. Do not give investment advice or promises. Focus on participation, reconciliation, variance risk, cashflow discipline, and leadership next actions. Return 4 to 6 plain bullet sentences only.",
               },
             ],
           },
@@ -466,7 +495,7 @@ async function generateOpenAIFinanceInsights(input: InsightInput, fallback: stri
           {
             role: "system",
             content:
-              "You are GIEFA's finance reporting assistant. Produce concise governance-safe insights for a savings cooperative monthly report. Do not give investment advice or promises. Focus on participation, reconciliation, variance risk, cashflow discipline, and leadership next actions. Return 4 to 6 plain bullet sentences only.",
+              "You are GIEFA's finance reporting assistant. Produce concise, plain-language treasurer notes for a savings cooperative monthly report. Do not mention AI. Do not give investment advice or promises. Focus on participation, reconciliation, variance risk, cashflow discipline, and leadership next actions. Return 4 to 6 plain bullet sentences only.",
           },
           {
             role: "user",
@@ -591,21 +620,21 @@ export async function GET(request: Request) {
   const pdf = new PdfDocument();
   pdf.title(
     `Monthly Finance Report: ${monthLabel(report.reporting_month)}`,
-    `Treasurer: ${preparedBy} | Status: ${report.status ?? "draft"} | Generated: ${dateLabel(report.created_at)}`
+    `Prepared by ${preparedBy} | ${statusLabel(report.status)} | Generated ${dateLabel(report.created_at)}`
   );
   pdf.metricGrid([
     `Contributors|${contributorIds.size} / ${activeMembers.length}|${percent(participationRate)} participation`,
-    `Member deposits|${money(approvedDeposits)}|Approved and posted`,
-    `Investment return|${money(interestAmount)}|${percent(growthRate)} monthly growth`,
-    `Closing NAV|${money(closingBalance)}|SBG statement value`,
+    `Member deposits|${money(approvedDeposits)}|Approved deposits`,
+    `Profit earned|${money(interestAmount)}|${percent(growthRate)} growth`,
+    `Closing balance|${money(closingBalance)}|Statement balance`,
   ]);
 
-  pdf.section("Group Summary");
+  pdf.section("Monthly Summary");
   pdf.bullets([
-    `Total members contributing this month: ${contributorIds.size}`,
-    `Total approved deposits received: ${money(approvedDeposits)}`,
-    "Investment status: funds are tracked against the SBG Securities Uganda Money Market Fund statement.",
-    "Managed by: SBG Securities Uganda Limited.",
+    `${contributorIds.size} of ${activeMembers.length || "all"} approved members contributed in ${monthLabel(report.reporting_month)}.`,
+    `Approved member deposits totalled ${money(approvedDeposits)}.`,
+    `The investment statement moved from ${money(openingBalance)} to ${money(closingBalance)}.`,
+    `The month's profit/return was ${money(interestAmount)}.`,
   ]);
 
   pdf.table(
@@ -630,16 +659,15 @@ export async function GET(request: Request) {
   );
 
   pdf.table(
-    "Fund Performance",
+    "Fund Position",
     ["Metric", "Value"],
     [
-      ["Opening Balance", money(openingBalance)],
-      ["New Approved Deposits", money(approvedDeposits)],
-      ["Closing Balance (NAV)", money(closingBalance)],
-      ["Periodic Return", money(periodicReturn)],
-      ["Return / Profit Earned", money(interestAmount)],
-      ["Monthly Fund Growth Rate", percent(growthRate)],
-      ["Net Asset Value (NAV)", money(closingBalance)],
+      ["Opening balance", money(openingBalance)],
+      ["Approved member deposits", money(approvedDeposits)],
+      ["Statement movement / periodic return", money(periodicReturn)],
+      ["Profit earned this month", money(interestAmount)],
+      ["Monthly growth rate", percent(growthRate)],
+      ["Closing balance", money(closingBalance)],
     ]
   );
 
@@ -664,36 +692,37 @@ export async function GET(request: Request) {
       : undefined
   );
 
-  pdf.table(
-    "Statement Reconciliation",
-    ["Date", "Narration", "Credit", "Reference", "Match"],
-    transactions.slice(0, 16).map((transaction) => [
-      transaction.transaction_date ? dateLabel(transaction.transaction_date) : "No date",
-      transaction.description ?? "No narration",
-      money(transaction.credit),
-      transaction.reference ?? "No reference",
-      transaction.match_status ?? "unmatched",
-    ])
-  );
+  if (transactions.length > 0) {
+    pdf.table(
+      "Bank Statement Credits",
+      ["Date", "Description", "Amount", "Reference", "Status"],
+      transactions.slice(0, 16).map((transaction) => [
+        transaction.transaction_date ? dateLabel(transaction.transaction_date) : "No date",
+        transaction.description ?? "No description",
+        money(transaction.credit),
+        transaction.reference ?? "No reference",
+        statusLabel(transaction.match_status ?? "unmatched"),
+      ])
+    );
+  }
 
-  pdf.section("AI Advisory Insights");
+  pdf.section("Treasurer's Review");
   pdf.bullets(aiInsights);
-  pdf.paragraph(
-    "These AI-assisted insights are for governance review and should be confirmed by finance and leadership before member communication or final approval."
-  );
 
-  pdf.section("Issues and Notes");
+  pdf.section("Follow-up Notes");
   pdf.bullets([
-    `Participation: ${contributorIds.size} of ${activeMembers.length || "all"} approved members contributed in ${monthLabel(report.reporting_month)}.`,
-    `Interest allocation: ${money(interestAmount)} is distributed by each member's daily weighted investment balance.`,
-    `Pending proof: ${pendingMonthSubmissions.length} submission(s) remain visible for finance follow-up but are not posted until approved.`,
+    `Member profit allocation is based on each member's daily weighted investment balance.`,
+    pendingMonthSubmissions.length > 0
+      ? `${pendingMonthSubmissions.length} deposit proof item(s) still need finance review before posting.`
+      : "No pending deposit proof items are waiting for this month.",
     report.variance_status === "deposit_exceeds_statement"
-      ? "Chairman attention: approved deposits exceed statement movement. The report requires leadership review."
-      : "Statement variance is within the current report status.",
+      ? "Chairman attention: approved deposits are higher than the statement movement. Review before final approval."
+      : "No major statement variance is flagged for this report.",
   ]);
 
-  if (report.notes) {
-    pdf.paragraph(`Finance notes: ${report.notes}`);
+  const financeNotes = compactFinanceNotes(report.notes);
+  if (financeNotes) {
+    pdf.paragraph(`Finance note: ${financeNotes}`);
   }
 
   const bytes = pdf.render();
