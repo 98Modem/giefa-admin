@@ -48,10 +48,13 @@ create table if not exists public.finance_interest_allocations (
   allocation_weight numeric not null default 0,
   interest_amount numeric not null default 0,
   days_in_month integer not null,
-  calculation_method text not null default 'daily_weighted_balance',
+  calculation_method text not null default 'daily_weighted_pool_balance',
   generated_at timestamptz not null default now(),
   unique (report_id, member_id)
 );
+
+alter table public.finance_interest_allocations
+  alter column calculation_method set default 'daily_weighted_pool_balance';
 
 create table if not exists public.finance_report_edit_requests (
   id uuid primary key default gen_random_uuid(),
@@ -179,9 +182,9 @@ begin
   from (
     select
       ds.member_id,
-      coalesce(sum(ds.investment_amount), 0) as opening_balance,
+      coalesce(sum(ds.amount), 0) as opening_balance,
       0::numeric as month_deposits,
-      coalesce(sum(ds.investment_amount), 0) * month_days as weighted_amount
+      coalesce(sum(ds.amount), 0) * month_days as weighted_amount
     from public.deposit_submissions ds
     where ds.status = 'approved'
       and ds.deposit_date < month_start
@@ -190,12 +193,25 @@ begin
     union all
 
     select
+      er.member_id,
+      -coalesce(sum(er.amount), 0) as opening_balance,
+      0::numeric as month_deposits,
+      -coalesce(sum(er.amount), 0) * month_days as weighted_amount
+    from public.emergency_requests er
+    where er.status = 'approved'
+      and er.approved_at is not null
+      and er.approved_at::date < month_start
+    group by er.member_id
+
+    union all
+
+    select
       ds.member_id,
       0::numeric as opening_balance,
-      coalesce(sum(ds.investment_amount), 0) as month_deposits,
+      coalesce(sum(ds.amount), 0) as month_deposits,
       coalesce(
         sum(
-          ds.investment_amount *
+          ds.amount *
           greatest((month_end - greatest(ds.deposit_date, month_start) + 1), 0)
         ),
         0
@@ -204,6 +220,25 @@ begin
     where ds.status = 'approved'
       and ds.deposit_date between month_start and month_end
     group by ds.member_id
+
+    union all
+
+    select
+      er.member_id,
+      0::numeric as opening_balance,
+      0::numeric as month_deposits,
+      -coalesce(
+        sum(
+          er.amount *
+          greatest((month_end - greatest(er.approved_at::date, month_start) + 1), 0)
+        ),
+        0
+      ) as weighted_amount
+    from public.emergency_requests er
+    where er.status = 'approved'
+      and er.approved_at is not null
+      and er.approved_at::date between month_start and month_end
+    group by er.member_id
   ) source
   group by source.member_id
   having sum(source.weighted_amount) > 0;
@@ -221,7 +256,8 @@ begin
     weighted_balance,
     allocation_weight,
     interest_amount,
-    days_in_month
+    days_in_month,
+    calculation_method
   )
   select
     report_record.id,
@@ -232,7 +268,8 @@ begin
     weights.weighted_balance,
     case when total_weighted_balance > 0 then weights.weighted_balance / total_weighted_balance else 0 end,
     case when total_weighted_balance > 0 then round(interest_pool * (weights.weighted_balance / total_weighted_balance), 2) else 0 end,
-    month_days
+    month_days,
+    'daily_weighted_pool_balance'
   from pg_temp.giefa_interest_weights weights
   on conflict (report_id, member_id) do update
   set opening_investment_balance = excluded.opening_investment_balance,
@@ -241,6 +278,7 @@ begin
       allocation_weight = excluded.allocation_weight,
       interest_amount = excluded.interest_amount,
       days_in_month = excluded.days_in_month,
+      calculation_method = excluded.calculation_method,
       generated_at = now();
 
   update public.finance_monthly_reports

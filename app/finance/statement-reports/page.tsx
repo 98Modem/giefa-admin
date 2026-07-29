@@ -370,10 +370,10 @@ export default async function StatementReportsPage() {
       <section className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm dark:border-white/15 dark:bg-white/10">
         <div className="border-b border-gray-200 px-5 py-4 dark:border-white/15">
           <h2 className="text-base font-semibold text-gray-900 dark:text-white">
-            Daily Weighted Interest Allocation
+            Daily Weighted Pool Allocation
           </h2>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-300">
-            Interest is distributed by each member&apos;s weighted investment balance for the reporting month.
+            Interest is distributed by each member&apos;s weighted pooled balance, including investment and emergency funds, less approved emergency withdrawals.
           </p>
         </div>
         {latestAllocations.length === 0 ? (
@@ -393,7 +393,7 @@ export default async function StatementReportsPage() {
                 </p>
                 <div className="mt-4 grid gap-3 text-sm">
                   {[
-                    ["Opening base", money(allocation.opening_investment_balance)],
+                    ["Opening pool base", money(allocation.opening_investment_balance)],
                     ["Month deposits", money(allocation.month_investment_deposits)],
                     ["Weight", `${((allocation.allocation_weight ?? 0) * 100).toFixed(2)}%`],
                     ["Interest", money(allocation.interest_amount)],
@@ -412,7 +412,7 @@ export default async function StatementReportsPage() {
             <table className="min-w-full text-left text-sm">
               <thead className="bg-gray-50 text-xs uppercase text-gray-500 dark:bg-white/5 dark:text-gray-200">
                 <tr>
-                  {["Member", "Opening Base", "Month Deposits", "Weight", "Interest"].map((column) => (
+                  {["Member", "Opening Pool Base", "Month Deposits", "Weight", "Interest"].map((column) => (
                     <th key={column} className="px-5 py-3 font-semibold">
                       {column}
                     </th>

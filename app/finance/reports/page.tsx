@@ -289,8 +289,8 @@ export default async function FinancialReportsPage() {
           </section>
 
           <ReportTable
-            title="Daily Weighted Interest Allocation"
-            columns={["Member", "Opening Base", "Month Deposits", "Weight", "Interest"]}
+            title="Daily Weighted Pool Allocation"
+            columns={["Member", "Opening Pool Base", "Month Deposits", "Weight", "Interest"]}
             empty="No interest allocation rows have been generated for this report."
             rows={allocations.map((allocation) => [
               memberName(members[allocation.member_id]),
@@ -328,7 +328,7 @@ export default async function FinancialReportsPage() {
                 </li>
                 <li>
                   <strong>Interest allocation:</strong> {money(interestAmount)} is
-                  distributed by daily weighted investment balance for the month.
+                  distributed by each member&apos;s daily weighted pooled balance for the month.
                 </li>
                 <li>
                   <strong>Pending proof:</strong> {pendingMonthSubmissions.length} member

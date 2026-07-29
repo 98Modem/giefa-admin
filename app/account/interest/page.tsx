@@ -18,8 +18,8 @@ export default async function InterestEarnedPage() {
   const allocationRows = member
     ? allocations.filter((allocation) => allocation.member_id === member.id)
     : [];
-  const totalInvestment = rows.reduce(
-    (total, row) => total + Number(row.investment_amount ?? 0),
+  const totalPooledDeposits = rows.reduce(
+    (total, row) => total + Number(row.amount ?? 0),
     0
   );
   const postedInterest = allocationRows.reduce(
@@ -31,15 +31,15 @@ export default async function InterestEarnedPage() {
     <FeaturePage
       eyebrow="My Account"
       title="Interest Earned"
-      description="Interest is allocated from monthly finance reports using daily weighted investment balances, so deposits made on different dates earn fairly."
+      description="Interest is allocated from monthly finance reports using each member's daily weighted pooled balance, including investment and emergency funds."
       metrics={[
-        { label: "Investment Base", value: money(totalInvestment), detail: "Visible investment contributions" },
+        { label: "Pooled Deposit Base", value: money(totalPooledDeposits), detail: "Investment + emergency contributions" },
         { label: "Posted Interest", value: money(postedInterest), detail: "Daily weighted allocations" },
         { label: "Contribution Rows", value: String(rows.length), detail: "monthly_contributions" },
         { label: "Allocation Rows", value: String(allocationRows.length), detail: "finance_interest_allocations" },
       ]}
       table={{
-        columns: ["Month", "Opening Base", "Month Deposits", "Weight", "Interest"],
+        columns: ["Month", "Opening Pool Base", "Month Deposits", "Weight", "Interest"],
         rows: allocationRows.map((row) => [
           row.reporting_month,
           money(row.opening_investment_balance),

@@ -672,8 +672,8 @@ export async function GET(request: Request) {
   );
 
   pdf.table(
-    "Daily Weighted Interest Allocation",
-    ["Member", "Opening Base", "Month Deposits", "Weight", "Interest"],
+    "Daily Weighted Pool Allocation",
+    ["Member", "Opening Pool Base", "Month Deposits", "Weight", "Interest"],
     allocations.map((allocation) => [
       memberName(members[allocation.member_id]),
       money(allocation.opening_investment_balance),
@@ -711,7 +711,7 @@ export async function GET(request: Request) {
 
   pdf.section("Follow-up Notes");
   pdf.bullets([
-    `Member profit allocation is based on each member's daily weighted investment balance.`,
+    `Member profit allocation is based on each member's daily weighted pooled balance, including investment and emergency funds less approved emergency withdrawals.`,
     pendingMonthSubmissions.length > 0
       ? `${pendingMonthSubmissions.length} deposit proof item(s) still need finance review before posting.`
       : "No pending deposit proof items are waiting for this month.",
