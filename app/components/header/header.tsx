@@ -174,10 +174,11 @@ function scoreDestination(destination: SearchDestination, query: string) {
 }
 
 type HeaderProps = {
+  currentRole?: Role | null;
   onOpenMobileSidebar?: () => void;
 };
 
-export function Header({ onOpenMobileSidebar }: HeaderProps) {
+export function Header({ currentRole, onOpenMobileSidebar }: HeaderProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [member, setMember] = useState<HeaderMember | null>(null);
@@ -285,9 +286,11 @@ export function Header({ onOpenMobileSidebar }: HeaderProps) {
     loadMember();
 
     window.addEventListener("giefa-profile-updated", loadMember);
+    window.addEventListener("giefa-role-updated", loadMember);
 
     return () => {
       window.removeEventListener("giefa-profile-updated", loadMember);
+      window.removeEventListener("giefa-role-updated", loadMember);
     };
   }, []);
 
@@ -673,8 +676,8 @@ export function Header({ onOpenMobileSidebar }: HeaderProps) {
   const displayName =
     [member?.first_name, member?.last_name].filter(Boolean).join(" ") ||
     "GIEFA user";
-  const role = member?.role?.replace("_", " ") ?? "member";
-  const memberRole = member?.role as Role | null | undefined;
+  const memberRole = currentRole ?? (member?.role as Role | null | undefined);
+  const role = memberRole?.replace("_", " ") ?? "member";
   const searchDestinations = useMemo(
     () => buildSearchDestinations(memberRole),
     [memberRole]

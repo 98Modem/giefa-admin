@@ -257,10 +257,15 @@ export async function assignMemberRole(formData: FormData) {
   revalidatePath("/chairman/finance-overview");
   revalidatePath("/system/users");
   revalidatePath("/dashboard");
+  revalidatePath("/", "layout");
 
   if (selfChange) {
-    redirect("/dashboard");
+    redirect(`/dashboard?role_updated=${encodeURIComponent(nextRole)}`);
   }
 
-  redirect("/governance/change-roles");
+  redirect(
+    `/governance/change-roles?role_updated=${encodeURIComponent(
+      target.id
+    )}&to=${encodeURIComponent(nextRole)}`
+  );
 }

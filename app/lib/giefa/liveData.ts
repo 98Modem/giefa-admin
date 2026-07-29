@@ -1,5 +1,6 @@
 import { supabaseServer } from "@/app/lib/supabase/server";
 import { Role } from "@/app/employee_type/roles";
+import { unstable_noStore as noStore } from "next/cache";
 
 export type MemberStatus = "pending" | "approved" | "suspended" | "denied";
 
@@ -198,6 +199,8 @@ export function memberName(member: MemberRecord | undefined) {
 }
 
 export async function getCurrentMember() {
+  noStore();
+
   const supabase = await supabaseServer();
   const {
     data: { session },
@@ -215,6 +218,8 @@ export async function getCurrentMember() {
 }
 
 export async function getMembers(status?: MemberStatus) {
+  noStore();
+
   const supabase = await supabaseServer();
   let query = supabase
     .from("members")

@@ -1,11 +1,13 @@
 "use client";
 
 import { ReactNode, useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import clsx from "clsx";
 import Sidebar from "@/app/components/sidebar/Sidebar";
 import { Header } from "@/app/components/header/header";
 import InactivityModal from "@/app/dashboard/components/InactivityModal";
 import { useInactivityLogout } from "@/app/dashboard/hooks/useInactivityLogout";
+import { useUserRole } from "@/app/dashboard/auth/useUserRole";
 import { Role } from "@/app/employee_type/roles";
 import {
   isSidebarPosition,
@@ -25,6 +27,8 @@ export function AppFrame({
   initialUserId,
   initialSidebarPosition,
 }: AppFrameProps) {
+  const router = useRouter();
+  const pathname = usePathname();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [sidebarPosition, setSidebarPosition] = useState<SidebarPosition>(() => {
     if (typeof window === "undefined") return initialSidebarPosition;
@@ -34,6 +38,16 @@ export function AppFrame({
   });
   const isFloating = sidebarPosition === "floating";
   const { showPrompt, countdown, continueSession } = useInactivityLogout();
+  const {
+    role: liveRole,
+    userId: liveUserId,
+    loading: roleLoading,
+  } = useUserRole({
+    initialRole,
+    initialUserId,
+  });
+  const currentRole = liveRole ?? initialRole;
+  const currentUserId = liveUserId ?? initialUserId;
 
   useEffect(() => {
     const handlePreferenceUpdate = (event: Event) => {
@@ -56,6 +70,28 @@ export function AppFrame({
     };
   }, []);
 
+  useEffect(() => {
+    if (roleLoading || !currentRole) return;
+
+    const protectedRoutes: Array<{ prefix: string; roles: Role[] }> = [
+      { prefix: "/members", roles: ["general_sec", "chairman", "admin"] },
+      { prefix: "/finance", roles: ["treasurer", "chairman", "admin"] },
+      { prefix: "/governance", roles: ["chairman", "admin"] },
+      { prefix: "/system", roles: ["chairman", "admin"] },
+      { prefix: "/chairman", roles: ["chairman", "admin"] },
+      { prefix: "/funds/pending", roles: ["treasurer", "chairman", "admin"] },
+      { prefix: "/funds/approved", roles: ["treasurer", "chairman", "admin"] },
+    ];
+
+    const currentRoute = protectedRoutes.find((route) =>
+      pathname.startsWith(route.prefix)
+    );
+
+    if (currentRoute && !currentRoute.roles.includes(currentRole)) {
+      router.replace(`/dashboard?role_updated=${encodeURIComponent(currentRole)}`);
+    }
+  }, [currentRole, pathname, roleLoading, router]);
+
   return (
     <div
       className={clsx(
@@ -64,8 +100,9 @@ export function AppFrame({
       )}
     >
       <Sidebar
-        initialRole={initialRole}
-        initialUserId={initialUserId}
+        role={currentRole}
+        userId={currentUserId}
+        loading={roleLoading && !currentRole}
         position={sidebarPosition}
         mobileOpen={mobileSidebarOpen}
         onMobileClose={() => setMobileSidebarOpen(false)}
@@ -77,7 +114,10 @@ export function AppFrame({
           isFloating && "lg:pl-24"
         )}
       >
-        <Header onOpenMobileSidebar={() => setMobileSidebarOpen(true)} />
+        <Header
+          currentRole={currentRole}
+          onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
+        />
         <main className="app-main min-w-0 flex-1 overflow-y-auto px-3 py-4 sm:px-5 lg:px-8 lg:py-7">
           {children}
         </main>

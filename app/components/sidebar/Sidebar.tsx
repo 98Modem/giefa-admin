@@ -6,7 +6,6 @@ import Link from "next/link";
 import clsx from "clsx";
 
 import { supabaseBrowser } from "@/app/lib/supabase/client";
-import { useUserRole } from "@/app/dashboard/auth/useUserRole";
 
 import {
   ArrowLeftOnRectangleIcon,
@@ -92,8 +91,9 @@ function SidebarLoadingShell({
 }
 
 type SidebarProps = {
-  initialRole?: Role | null;
-  initialUserId?: string | null;
+  role?: Role | null;
+  userId?: string | null;
+  loading?: boolean;
   position?: SidebarPosition;
   mobileOpen?: boolean;
   onMobileClose?: () => void;
@@ -103,17 +103,14 @@ type SidebarProps = {
  Sidebar
 ----------------------------------- */
 export default function Sidebar({
-  initialRole = null,
-  initialUserId = null,
+  role = null,
+  userId = null,
+  loading = false,
   position = "left",
   mobileOpen = false,
   onMobileClose,
 }: SidebarProps) {
   const pathname = usePathname();
-  const { role, userId, loading } = useUserRole({
-    initialRole,
-    initialUserId,
-  });
 
   const [collapsed, setCollapsed] = useState(() => {
     if (typeof window === "undefined") return false;
