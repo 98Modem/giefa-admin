@@ -16,6 +16,14 @@ function assertOk(error: { message: string } | null, action: string) {
   }
 }
 
+function isMissingRpc(error: { code?: string; message?: string } | null) {
+  return (
+    error?.code === "PGRST202" ||
+    error?.message?.toLowerCase().includes("could not find the function") ||
+    error?.message?.toLowerCase().includes("function public.assign_member_role")
+  );
+}
+
 const ASSIGNABLE_ROLES: Role[] = [
   "chairman",
   "treasurer",
@@ -238,11 +246,22 @@ export async function assignMemberRole(formData: FormData) {
     }
   }
 
-  const { error } = await supabase
-    .from("members")
-    .update({ role: nextRole })
-    .eq("id", target.id);
-  assertOk(error, "Assign member role");
+  const { error: rpcError } = await supabase.rpc("assign_member_role", {
+    p_target_member_id: target.id,
+    p_next_role: nextRole,
+  });
+
+  if (rpcError && !isMissingRpc(rpcError)) {
+    assertOk(rpcError, "Assign member role");
+  }
+
+  if (isMissingRpc(rpcError)) {
+    const { error } = await supabase
+      .from("members")
+      .update({ role: nextRole })
+      .eq("id", target.id);
+    assertOk(error, "Assign member role");
+  }
 
   await supabase.from("notifications").insert({
     member_id: target.id,
