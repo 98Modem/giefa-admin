@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/app/lib/supabase/client";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
+  const recoveryPrepared = useRef(false);
 
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -17,7 +18,34 @@ export default function ResetPasswordPage() {
   const [message, setMessage] = useState("Preparing password reset...");
 
   useEffect(() => {
+    const wait = (milliseconds: number) =>
+      new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+
+    const activateExistingRecoverySession = async () => {
+      const {
+        data: { session },
+      } = await supabaseBrowser.auth.getSession();
+
+      if (!session) return false;
+
+      setReady(true);
+      setError("");
+      setMessage("");
+      window.history.replaceState({}, document.title, "/reset-password");
+      return true;
+    };
+
+    const recoverFromExchangeRace = async () => {
+      if (await activateExistingRecoverySession()) return true;
+
+      await wait(300);
+      return activateExistingRecoverySession();
+    };
+
     const prepareRecoverySession = async () => {
+      if (recoveryPrepared.current) return;
+      recoveryPrepared.current = true;
+
       setError("");
 
       const url = new URL(window.location.href);
@@ -28,6 +56,8 @@ export default function ResetPasswordPage() {
           await supabaseBrowser.auth.exchangeCodeForSession(code);
 
         if (exchangeError) {
+          if (await recoverFromExchangeRace()) return;
+
           setError(
             "This reset link could not be verified. Please request a new password reset email and open the latest link in the same browser."
           );
@@ -52,6 +82,8 @@ export default function ResetPasswordPage() {
         });
 
         if (sessionError) {
+          if (await recoverFromExchangeRace()) return;
+
           setError(sessionError.message);
           setMessage("");
           return;
@@ -63,15 +95,7 @@ export default function ResetPasswordPage() {
         return;
       }
 
-      const {
-        data: { session },
-      } = await supabaseBrowser.auth.getSession();
-
-      if (session) {
-        setReady(true);
-        setMessage("");
-        return;
-      }
+      if (await activateExistingRecoverySession()) return;
 
       setError("This reset link is invalid or has expired.");
       setMessage("");
