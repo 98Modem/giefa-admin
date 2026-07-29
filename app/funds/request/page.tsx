@@ -39,17 +39,23 @@ export default async function RequestFundsPage() {
   const hasPendingRequest = myRequests.some(
     (request) => request.status === "pending"
   );
+  const hasStartedCycle = approvedCycleCount > 0;
+  const canStartCycle =
+    hasStartedCycle || availableEmergencyFund >= EMERGENCY_MINIMUM_AVAILABLE;
   const canRequest =
-    availableEmergencyFund >= EMERGENCY_MINIMUM_AVAILABLE &&
+    canStartCycle &&
+    maxRequestAmount > 0 &&
     remainingCycleRequests > 0 &&
     !hasPendingRequest;
   const blockedReason = hasPendingRequest
     ? "You already have one emergency request waiting for treasurer review."
-    : availableEmergencyFund < EMERGENCY_MINIMUM_AVAILABLE
-      ? `Emergency requests open when your available emergency balance reaches ${money(EMERGENCY_MINIMUM_AVAILABLE)}.`
+    : !canStartCycle
+      ? `Your first emergency request opens when your available emergency balance reaches ${money(EMERGENCY_MINIMUM_AVAILABLE)}.`
       : remainingCycleRequests <= 0
         ? "You have used two approved requests in this cycle. Refill your emergency fund before requesting again."
-        : "";
+        : maxRequestAmount <= 0
+          ? "You do not have an emergency balance available for withdrawal."
+          : "";
 
   return (
     <div className="space-y-6">
@@ -68,9 +74,10 @@ export default async function RequestFundsPage() {
             title: "Request Rules",
             body: "Emergency fund access is based on your available personal reserve and the current request cycle.",
             items: [
-              `Minimum available emergency balance: ${money(EMERGENCY_MINIMUM_AVAILABLE)}`,
+              `First request opens at ${money(EMERGENCY_MINIMUM_AVAILABLE)} available emergency balance`,
+              "Second request may be below that balance if it is still within the same cycle",
               "Each request can be up to 50% of the available emergency balance",
-              "Two approved requests are allowed before a refill is required",
+              `After two approved requests, the next cycle opens only after refilling to ${money(EMERGENCY_MINIMUM_AVAILABLE)}`,
             ],
           },
         ]}

@@ -82,9 +82,9 @@ export async function createEmergencyRequest(formData: FormData) {
   const requestCycleCount = Number(fundRecord?.request_cycle_count ?? 0);
   const maxRequestAmount = Math.floor(available * EMERGENCY_REQUEST_CAP_RATE);
 
-  if (available < EMERGENCY_MINIMUM_AVAILABLE) {
+  if (requestCycleCount === 0 && available < EMERGENCY_MINIMUM_AVAILABLE) {
     throw new Error(
-      `Emergency requests open when your emergency balance reaches UGX ${EMERGENCY_MINIMUM_AVAILABLE.toLocaleString()}.`
+      `Emergency requests open when your emergency balance first reaches UGX ${EMERGENCY_MINIMUM_AVAILABLE.toLocaleString()}.`
     );
   }
 
@@ -92,6 +92,10 @@ export async function createEmergencyRequest(formData: FormData) {
     throw new Error(
       "You have used your two emergency requests for this cycle. Please refill your emergency fund before requesting again."
     );
+  }
+
+  if (available <= 0 || maxRequestAmount <= 0) {
+    throw new Error("You do not have an emergency balance available for withdrawal.");
   }
 
   if (amount > maxRequestAmount) {

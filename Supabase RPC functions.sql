@@ -139,8 +139,8 @@ begin
     raise exception 'member has no emergency fund ledger';
   end if;
 
-  if fund_available < 180000 then
-    raise exception 'emergency balance must be at least UGX 180,000';
+  if fund_cycle_count = 0 and fund_available < 180000 then
+    raise exception 'first emergency request requires at least UGX 180,000 available balance';
   end if;
 
   if fund_cycle_count >= 2 then
