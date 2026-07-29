@@ -41,6 +41,8 @@ export type EmergencyFundRecord = {
   total_contributed: number | null;
   total_withdrawn: number | null;
   available: number | null;
+  request_cycle_count?: number | null;
+  last_refill_at?: string | null;
   created_at: string | null;
 };
 
@@ -270,10 +272,19 @@ export async function getMonthlyContributions() {
 
 export async function getEmergencyFunds() {
   const supabase = await supabaseServer();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("emergency_funds")
-    .select("id, member_id, total_contributed, total_withdrawn, available, created_at")
+    .select("id, member_id, total_contributed, total_withdrawn, available, request_cycle_count, last_refill_at, created_at")
     .order("created_at", { ascending: false });
+
+  if (error) {
+    const { data: fallback } = await supabase
+      .from("emergency_funds")
+      .select("id, member_id, total_contributed, total_withdrawn, available, created_at")
+      .order("created_at", { ascending: false });
+
+    return (fallback ?? []) as EmergencyFundRecord[];
+  }
 
   return (data ?? []) as EmergencyFundRecord[];
 }

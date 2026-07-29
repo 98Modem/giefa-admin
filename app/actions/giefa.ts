@@ -31,6 +31,10 @@ const ASSIGNABLE_ROLES: Role[] = [
   "member",
 ];
 
+const EMERGENCY_MINIMUM_AVAILABLE = 180_000;
+const EMERGENCY_REQUEST_CAP_RATE = 0.5;
+const EMERGENCY_APPROVED_REQUESTS_PER_CYCLE = 2;
+
 function isAssignableRole(value: string): value is Role {
   return ASSIGNABLE_ROLES.includes(value as Role);
 }
@@ -49,11 +53,63 @@ export async function createEmergencyRequest(formData: FormData) {
 
   const { data: member } = await supabase
     .from("members")
-    .select("id")
+    .select("id, status")
     .eq("auth_user_id", session.user.id)
-    .maybeSingle<{ id: string }>();
+    .maybeSingle<{ id: string; status: string | null }>();
 
-  if (!member) return;
+  if (!member || member.status !== "approved") {
+    throw new Error("Only approved members can request emergency funds.");
+  }
+
+  const { data: emergencyFund, error: fundError } = await supabase
+    .from("emergency_funds")
+    .select("available, request_cycle_count")
+    .eq("member_id", member.id)
+    .maybeSingle<{ available: number | null; request_cycle_count?: number | null }>();
+  let fundRecord = emergencyFund;
+
+  if (fundError) {
+    const { data: fallbackFund, error: fallbackFundError } = await supabase
+      .from("emergency_funds")
+      .select("available")
+      .eq("member_id", member.id)
+      .maybeSingle<{ available: number | null }>();
+    assertOk(fallbackFundError, "Check emergency fund balance");
+    fundRecord = fallbackFund;
+  }
+
+  const available = Number(fundRecord?.available ?? 0);
+  const requestCycleCount = Number(fundRecord?.request_cycle_count ?? 0);
+  const maxRequestAmount = Math.floor(available * EMERGENCY_REQUEST_CAP_RATE);
+
+  if (available < EMERGENCY_MINIMUM_AVAILABLE) {
+    throw new Error(
+      `Emergency requests open when your emergency balance reaches UGX ${EMERGENCY_MINIMUM_AVAILABLE.toLocaleString()}.`
+    );
+  }
+
+  if (requestCycleCount >= EMERGENCY_APPROVED_REQUESTS_PER_CYCLE) {
+    throw new Error(
+      "You have used your two emergency requests for this cycle. Please refill your emergency fund before requesting again."
+    );
+  }
+
+  if (amount > maxRequestAmount) {
+    throw new Error(
+      `You can request up to UGX ${maxRequestAmount.toLocaleString()} today.`
+    );
+  }
+
+  const { count: pendingCount, error: pendingError } = await supabase
+    .from("emergency_requests")
+    .select("id", { count: "exact", head: true })
+    .eq("member_id", member.id)
+    .eq("status", "pending");
+  assertOk(pendingError, "Check pending emergency requests");
+
+  if ((pendingCount ?? 0) > 0) {
+    throw new Error("You already have an emergency request waiting for treasurer review.");
+  }
 
   const { error } = await supabase.from("emergency_requests").insert({
     member_id: member.id,

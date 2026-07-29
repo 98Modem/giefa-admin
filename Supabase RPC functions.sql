@@ -110,6 +110,8 @@ declare
   actor_id uuid;
   target_member_id uuid;
   request_amount numeric;
+  fund_available numeric;
+  fund_cycle_count integer;
 begin
   if not public.is_approved_role(array['treasurer', 'admin']) then
     raise exception 'not authorized';
@@ -127,6 +129,28 @@ begin
     raise exception 'request not found or already decided';
   end if;
 
+  select coalesce(available, 0), coalesce(request_cycle_count, 0)
+  into fund_available, fund_cycle_count
+  from public.emergency_funds
+  where member_id = target_member_id
+  for update;
+
+  if fund_available is null then
+    raise exception 'member has no emergency fund ledger';
+  end if;
+
+  if fund_available < 180000 then
+    raise exception 'emergency balance must be at least UGX 180,000';
+  end if;
+
+  if fund_cycle_count >= 2 then
+    raise exception 'member must refill emergency fund before another request';
+  end if;
+
+  if request_amount > floor(fund_available * 0.5) then
+    raise exception 'request amount exceeds 50 percent of available emergency fund';
+  end if;
+
   update public.emergency_requests
   set status = 'approved',
       approved_by = actor_id,
@@ -135,7 +159,8 @@ begin
 
   update public.emergency_funds
   set total_withdrawn = coalesce(total_withdrawn, 0) + coalesce(request_amount, 0),
-      available = coalesce(available, 0) - coalesce(request_amount, 0)
+      available = coalesce(available, 0) - coalesce(request_amount, 0),
+      request_cycle_count = least(coalesce(request_cycle_count, 0) + 1, 2)
   where member_id = target_member_id;
 
   insert into public.audit_logs (action, performed_by, target_member)
