@@ -138,8 +138,8 @@ const ASSISTANT_DESTINATIONS: Array<{
     keywords: "chairman review finance reports edit approvals monthly close",
   },
   {
-    title: "Leadership Role Assignments",
-    href: "/chairman/finance-overview",
+    title: "Change Roles",
+    href: "/governance/change-roles",
     roles: ADMIN_CHAIRMAN_ROLES,
     keywords: "assign roles change role appoint chairman treasurer general secretary leadership users",
   },
@@ -479,8 +479,8 @@ function localAnswer(
     const roleLink = canManageRoles
       ? [
           {
-            title: "Leadership Role Assignments",
-            href: "/chairman/finance-overview",
+            title: "Change Roles",
+            href: "/governance/change-roles",
             reason: "Chairman/Admin can assign approved members to leadership roles here.",
           },
         ]

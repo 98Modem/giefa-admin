@@ -199,10 +199,6 @@ export const SIDEBAR_MENU: SidebarItem[] = [
     roles: ADMIN_CHAIRMAN_ROLES,
     subMenu: [
       {
-        title: "Overview",
-        href: "/chairman/finance-overview",
-      },
-      {
         title: "Reports",
         href: "/chairman/finance-reports",
       },
@@ -221,6 +217,10 @@ export const SIDEBAR_MENU: SidebarItem[] = [
       {
         title: "Deletion Approvals",
         href: "/governance/deletion-approvals",
+      },
+      {
+        title: "Change Roles",
+        href: "/governance/change-roles",
       },
     ],
   },

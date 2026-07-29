@@ -253,6 +253,7 @@ export async function assignMemberRole(formData: FormData) {
     read: false,
   });
 
+  revalidatePath("/governance/change-roles");
   revalidatePath("/chairman/finance-overview");
   revalidatePath("/system/users");
   revalidatePath("/dashboard");
@@ -260,4 +261,6 @@ export async function assignMemberRole(formData: FormData) {
   if (selfChange) {
     redirect("/dashboard");
   }
+
+  redirect("/governance/change-roles");
 }
