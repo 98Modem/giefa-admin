@@ -40,6 +40,7 @@ const roleProtectedRoutes: {
 const publicRoutes = [
   "/login",
   "/signup",
+  "/auth/callback",
   "/forgot-password",
   "/reset-password",
   "/pending-approval",

@@ -34,6 +34,7 @@ export default function SignupPage() {
           email,
           password,
           options: {
+            emailRedirectTo: `${window.location.origin}/auth/callback?next=/pending-approval`,
             data: {
               first_name: firstName,
               last_name: lastName,
