@@ -8,7 +8,7 @@ function getResetRedirectUrl() {
   const configuredUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
   const origin = configuredUrl || window.location.origin;
 
-  return `${origin.replace(/\/$/, "")}/reset-password`;
+  return `${origin.replace(/\/$/, "")}/auth/callback?next=/reset-password`;
 }
 
 export default function ForgotPasswordPage() {

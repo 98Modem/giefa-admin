@@ -247,6 +247,10 @@ export const SIDEBAR_MENU: SidebarItem[] = [
         href: "/system/audit-logs",
       },
       {
+        title: "System Health",
+        href: "/system/health",
+      },
+      {
         title: "Settings",
         href: "/system/settings",
       },

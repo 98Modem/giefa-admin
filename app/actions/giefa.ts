@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { supabaseServer } from "@/app/lib/supabase/server";
 import { Role } from "@/app/employee_type/roles";
+import { evaluateEmergencyRequest } from "@/app/lib/giefa/rules";
 
 function getString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -30,10 +31,6 @@ const ASSIGNABLE_ROLES: Role[] = [
   "general_sec",
   "member",
 ];
-
-const EMERGENCY_MINIMUM_AVAILABLE = 180_000;
-const EMERGENCY_REQUEST_CAP_RATE = 0.5;
-const EMERGENCY_APPROVED_REQUESTS_PER_CYCLE = 2;
 
 function isAssignableRole(value: string): value is Role {
   return ASSIGNABLE_ROLES.includes(value as Role);
@@ -80,28 +77,14 @@ export async function createEmergencyRequest(formData: FormData) {
 
   const available = Number(fundRecord?.available ?? 0);
   const requestCycleCount = Number(fundRecord?.request_cycle_count ?? 0);
-  const maxRequestAmount = Math.floor(available * EMERGENCY_REQUEST_CAP_RATE);
+  const decision = evaluateEmergencyRequest({
+    available,
+    requestCycleCount,
+    requestedAmount: amount,
+  });
 
-  if (requestCycleCount === 0 && available < EMERGENCY_MINIMUM_AVAILABLE) {
-    throw new Error(
-      `Emergency requests open when your emergency balance first reaches UGX ${EMERGENCY_MINIMUM_AVAILABLE.toLocaleString()}.`
-    );
-  }
-
-  if (requestCycleCount >= EMERGENCY_APPROVED_REQUESTS_PER_CYCLE) {
-    throw new Error(
-      "You have used your two emergency requests for this cycle. Please refill your emergency fund before requesting again."
-    );
-  }
-
-  if (available <= 0 || maxRequestAmount <= 0) {
-    throw new Error("You do not have an emergency balance available for withdrawal.");
-  }
-
-  if (amount > maxRequestAmount) {
-    throw new Error(
-      `You can request up to UGX ${maxRequestAmount.toLocaleString()} today.`
-    );
+  if (!decision.allowed) {
+    throw new Error(decision.reason ?? "This emergency request is not available.");
   }
 
   const { count: pendingCount, error: pendingError } = await supabase

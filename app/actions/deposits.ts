@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/app/lib/supabase/server";
+import { splitAmountAcrossMonths } from "@/app/lib/giefa/rules";
 
 function getString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -35,17 +36,6 @@ function parseContributionMonths(formData: FormData, fallbackMonth: string) {
   } catch {
     return fallbackMonth && isMonthValue(fallbackMonth) ? [fallbackMonth] : [];
   }
-}
-
-function splitAmountAcrossMonths(total: number, count: number) {
-  if (count <= 1) return [total];
-
-  const base = Math.floor(total / count);
-  const remainder = total - base * count;
-
-  return Array.from({ length: count }, (_, index) =>
-    base + (index < remainder ? 1 : 0)
-  );
 }
 
 function assertOk(error: { message: string } | null, action: string) {

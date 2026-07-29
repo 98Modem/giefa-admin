@@ -9,6 +9,11 @@ export default async function SystemUsersPage() {
       eyebrow="System"
       title="Users & Roles"
       description="Live user/member register from Supabase members."
+      primaryAction={{ label: "Open System Health", href: "/system/health" }}
+      secondaryActions={[
+        { label: "Audit Logs", href: "/system/audit-logs" },
+        { label: "Permissions", href: "/system/permissions" },
+      ]}
       metrics={[
         { label: "Total Members", value: String(members.length), detail: "All visible statuses" },
         { label: "Approved", value: String(members.filter((member) => member.status === "approved").length), detail: "Dashboard access" },

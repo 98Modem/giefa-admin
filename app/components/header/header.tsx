@@ -101,6 +101,7 @@ const SEARCH_KEYWORDS: Record<string, string> = {
   "/system/users": "users roles admin manage members permissions",
   "/system/permissions": "permissions access control roles admin",
   "/system/audit-logs": "audit logs system history admin",
+  "/system/health": "system health diagnostics status supabase google vision gemini openai storage realtime environment keys production",
   "/system/settings": "settings system configuration admin",
 };
 
