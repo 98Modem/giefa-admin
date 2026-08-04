@@ -3,6 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/app/lib/supabase/server";
 import { splitAmountAcrossMonths } from "@/app/lib/giefa/rules";
+import {
+  buildDepositConfirmationAttachments,
+  sendDepositConfirmationEmail,
+} from "@/app/lib/email/depositConfirmation";
 
 function getString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -103,10 +107,15 @@ export async function submitDepositProof(formData: FormData) {
 
   const { data: member } = await supabase
     .from("members")
-    .select("id, first_name, last_name")
+    .select("id, first_name, last_name, email")
     .eq("auth_user_id", session.user.id)
     .eq("status", "approved")
-    .maybeSingle<{ id: string; first_name: string | null; last_name: string | null }>();
+    .maybeSingle<{
+      id: string;
+      first_name: string | null;
+      last_name: string | null;
+      email: string | null;
+    }>();
 
   if (!member) {
     throw new Error("Only approved members can submit deposit proof.");
@@ -167,8 +176,56 @@ export async function submitDepositProof(formData: FormData) {
     status: "submitted",
   }));
 
-  const { error } = await supabase.from("deposit_submissions").insert(submissions);
+  const { data: insertedSubmissions, error } = await supabase
+    .from("deposit_submissions")
+    .insert(submissions)
+    .select("id");
   assertOk(error, "Submit deposit proof");
+
+  const submissionIds =
+    insertedSubmissions?.map((submission: { id: string }) => submission.id) ??
+    [];
+  const memberName =
+    [member.first_name, member.last_name].filter(Boolean).join(" ") ||
+    senderName ||
+    session.user.email ||
+    "GIEFA member";
+
+  let emailResultMessage = "";
+  try {
+    const attachments = await buildDepositConfirmationAttachments(proofs);
+    const emailResult = await sendDepositConfirmationEmail({
+      memberName,
+      memberEmail: member.email || session.user.email || null,
+      totalAmount,
+      emergencyAmount,
+      investmentAmount,
+      contributionMonths,
+      depositDate,
+      bankReference: bankReference || null,
+      senderName: senderName || null,
+      submissionIds,
+      attachments,
+    });
+    emailResultMessage = emailResult.message;
+  } catch (emailError) {
+    emailResultMessage =
+      emailError instanceof Error
+        ? `SBG confirmation email failed: ${emailError.message}`
+        : "SBG confirmation email failed for an unknown reason.";
+  }
+
+  if (emailResultMessage && submissionIds.length > 0) {
+    const emailNote = `SBG confirmation email status:\n${emailResultMessage}`;
+    const updatedExtractedText = [extractedText, emailNote]
+      .filter(Boolean)
+      .join("\n\n");
+
+    await supabase
+      .from("deposit_submissions")
+      .update({ extracted_text: updatedExtractedText })
+      .in("id", submissionIds);
+  }
 
   revalidatePath("/funds/deposit-proof");
   revalidatePath("/finance/deposit-submissions");

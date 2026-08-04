@@ -64,6 +64,41 @@ function depositorLabel(
   );
 }
 
+function SbgEmailStatus({ text }: { text: string | null }) {
+  const statusLine = text
+    ?.split("\n")
+    .find((line) => line.includes("SBG confirmation email"));
+  const detailLine =
+    text
+      ?.split("\n")
+      .slice(
+        Math.max(
+          0,
+          text.split("\n").findIndex((line) =>
+            line.includes("SBG confirmation email status")
+          ) + 1
+        )
+      )
+      .find((line) => line.trim().length > 0) ?? null;
+  const detail = detailLine || statusLine || "Not recorded";
+  const isSent = detail.toLowerCase().includes("sent");
+  const isSkipped = detail.toLowerCase().includes("skipped");
+  const tone = isSent
+    ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-400/25 dark:bg-emerald-500/10 dark:text-emerald-200"
+    : isSkipped
+      ? "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-400/25 dark:bg-amber-500/10 dark:text-amber-200"
+      : "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-400/25 dark:bg-rose-500/10 dark:text-rose-200";
+
+  return (
+    <span
+      title={detail}
+      className={`inline-flex max-w-44 rounded-full border px-2.5 py-1 text-xs font-semibold ${tone}`}
+    >
+      {isSent ? "Sent" : isSkipped ? "Not configured" : "Needs check"}
+    </span>
+  );
+}
+
 export default async function DepositSubmissionsPage() {
   const supabase = await supabaseServer();
   const [submissions, members] = await Promise.all([
@@ -129,6 +164,7 @@ export default async function DepositSubmissionsPage() {
           "Reference",
           "AI Read",
           "Proof",
+          "SBG Email",
           "Status",
           "Action",
         ],
@@ -155,6 +191,10 @@ export default async function DepositSubmissionsPage() {
           ) : (
             "No file"
           ),
+          <SbgEmailStatus
+            key={`${submission.id}-sbg-email`}
+            text={submission.extracted_text}
+          />,
           <StatusPill key={`${submission.id}-status`} status={submission.status} />,
           submission.status === "submitted" || submission.status === "needs_review" ? (
             <div key={`${submission.id}-actions`} className="flex min-w-56 flex-col gap-2">
