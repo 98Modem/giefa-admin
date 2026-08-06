@@ -7,6 +7,7 @@ type DepositConfirmationAttachment = {
 type SendDepositConfirmationInput = {
   memberName: string;
   memberEmail: string | null;
+  totalAmount: number;
   depositDate: string;
   bankReference: string | null;
   senderName: string | null;
@@ -20,6 +21,13 @@ export type DepositConfirmationEmailResult = {
 };
 
 const resendEndpoint = "https://api.resend.com/emails";
+
+function money(value: number) {
+  return new Intl.NumberFormat("en-UG", {
+    maximumFractionDigits: 0,
+    minimumFractionDigits: 0,
+  }).format(value);
+}
 
 function env(name: string) {
   return process.env[name]?.trim() || "";
@@ -47,6 +55,7 @@ function buildBody(input: SendDepositConfirmationInput) {
     `Money Market Fund Account Number: ${moneyMarketAccount}`,
     `Reference number: ${reference}`,
     `Deposit date: ${input.depositDate}`,
+    `Total amount deposited: UGX ${money(input.totalAmount)}`,
     `Depositor / member: ${input.memberName}`,
     input.memberEmail ? `Member email: ${input.memberEmail}` : "",
     input.senderName && input.senderName !== input.memberName

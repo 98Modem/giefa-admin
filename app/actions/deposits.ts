@@ -193,6 +193,7 @@ export async function submitDepositProof(formData: FormData) {
     const emailResult = await sendDepositConfirmationEmail({
       memberName,
       memberEmail: member.email || session.user.email || null,
+      totalAmount,
       depositDate,
       bankReference: bankReference || null,
       senderName: memberName,
