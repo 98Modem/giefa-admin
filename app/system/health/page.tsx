@@ -136,9 +136,16 @@ export default async function SystemHealthPage() {
     envCheck("Google Vision", "GOOGLE_CLOUD_VISION_API_KEY", false),
     envCheck("Gemini", "GEMINI_API_KEY", false),
     envCheck("OpenAI fallback", "OPENAI_API_KEY", false),
-    envCheck("Resend email", "RESEND_API_KEY", false),
-    envCheck("Deposit email recipient", "SBG_DEPOSIT_CONFIRMATION_EMAIL", false),
-    envCheck("Deposit email sender", "GIEFA_EMAIL_FROM", false),
+  ];
+
+  const emailChecks = [
+    envCheck("Resend API key", "RESEND_API_KEY"),
+    envCheck("Sender address", "GIEFA_EMAIL_FROM"),
+    envCheck("Reply-to address", "GIEFA_EMAIL_REPLY_TO", false),
+    envCheck("SBG confirmation recipient", "SBG_DEPOSIT_CONFIRMATION_EMAIL"),
+    envCheck("SBG group account", "SBG_GROUP_ACCOUNT_NUMBER"),
+    envCheck("SBG group account name", "SBG_GROUP_ACCOUNT_NAME"),
+    envCheck("SBG money market account", "SBG_MONEY_MARKET_ACCOUNT_NUMBER"),
   ];
 
   const databaseChecks = await Promise.all([
@@ -151,7 +158,7 @@ export default async function SystemHealthPage() {
     storageCheck(),
   ]);
 
-  const checks = [...envChecks, ...databaseChecks];
+  const checks = [...envChecks, ...emailChecks, ...databaseChecks];
   const issueCount = checks.filter((check) => check.status !== "ok").length;
 
   return (
@@ -184,6 +191,39 @@ export default async function SystemHealthPage() {
         </h2>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {envChecks.map((check) => (
+            <HealthCard key={check.label} check={check} />
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-[color:var(--theme-muted)]">
+              Email Delivery
+            </h2>
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-[color:var(--theme-muted)]">
+              Checks for automated deposit confirmation emails to SBG. These
+              values must be configured in Vercel for the live site.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <a
+              href="/api/system/email-health"
+              className="rounded-lg border border-[color:var(--theme-border)] bg-[color:var(--theme-card)] px-4 py-2 text-sm font-semibold text-[color:var(--theme-text)] shadow-sm transition hover:bg-[color:var(--theme-soft)]"
+            >
+              View runtime check
+            </a>
+            <a
+              href="/api/system/email-health?send=1"
+              className="rounded-lg bg-[color:var(--theme-accent)] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:opacity-90"
+            >
+              Send test email
+            </a>
+          </div>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {emailChecks.map((check) => (
             <HealthCard key={check.label} check={check} />
           ))}
         </div>
