@@ -1,4 +1,5 @@
 import { unstable_noStore as noStore } from "next/cache";
+import { redirect } from "next/navigation";
 import { supabaseServer } from "@/app/lib/supabase/server";
 
 type HealthStatus = "ok" | "warning" | "error";
@@ -107,6 +108,25 @@ async function storageCheck(): Promise<Check> {
 export default async function SystemHealthPage() {
   noStore();
 
+  const supabase = await supabaseServer();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (!session) {
+    redirect("/login");
+  }
+
+  const { data: currentMember } = await supabase
+    .from("members")
+    .select("role, status")
+    .eq("auth_user_id", session.user.id)
+    .maybeSingle<{ role: string; status: string }>();
+
+  if (currentMember?.status !== "approved" || currentMember.role !== "admin") {
+    redirect("/dashboard");
+  }
+
   const envChecks = [
     envCheck("Site URL", "NEXT_PUBLIC_SITE_URL"),
     envCheck("Supabase URL", "NEXT_PUBLIC_SUPABASE_URL"),
@@ -116,6 +136,9 @@ export default async function SystemHealthPage() {
     envCheck("Google Vision", "GOOGLE_CLOUD_VISION_API_KEY", false),
     envCheck("Gemini", "GEMINI_API_KEY", false),
     envCheck("OpenAI fallback", "OPENAI_API_KEY", false),
+    envCheck("Resend email", "RESEND_API_KEY", false),
+    envCheck("Deposit email recipient", "SBG_DEPOSIT_CONFIRMATION_EMAIL", false),
+    envCheck("Deposit email sender", "GIEFA_EMAIL_FROM", false),
   ];
 
   const databaseChecks = await Promise.all([

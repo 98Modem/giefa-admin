@@ -249,6 +249,7 @@ export const SIDEBAR_MENU: SidebarItem[] = [
       {
         title: "System Health",
         href: "/system/health",
+        roles: ["admin"],
       },
       {
         title: "Settings",
