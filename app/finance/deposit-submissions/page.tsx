@@ -1,7 +1,6 @@
 import {
-  approveDepositSubmission,
-  rejectDepositSubmission,
-} from "@/app/actions/deposits";
+  DepositProofReview,
+} from "@/app/finance/deposit-submissions/DepositProofReview";
 import { FeaturePage } from "@/app/components/feature/FeaturePage";
 import {
   dateLabel,
@@ -65,22 +64,7 @@ function depositorLabel(
 }
 
 function SbgEmailStatus({ text }: { text: string | null }) {
-  const statusLine = text
-    ?.split("\n")
-    .find((line) => line.includes("SBG confirmation email"));
-  const detailLine =
-    text
-      ?.split("\n")
-      .slice(
-        Math.max(
-          0,
-          text.split("\n").findIndex((line) =>
-            line.includes("SBG confirmation email status")
-          ) + 1
-        )
-      )
-      .find((line) => line.trim().length > 0) ?? null;
-  const detail = detailLine || statusLine || "Not recorded";
+  const { detail } = getSbgEmailDetail(text);
   const isSent = detail.toLowerCase().includes("sent");
   const isSkipped = detail.toLowerCase().includes("skipped");
   const tone = isSent
@@ -97,6 +81,32 @@ function SbgEmailStatus({ text }: { text: string | null }) {
       {isSent ? "Sent" : isSkipped ? "Not configured" : "Needs check"}
     </span>
   );
+}
+
+function getSbgEmailDetail(text: string | null) {
+  const lines = text?.split("\n") ?? [];
+  const statusLine = lines.find((line) =>
+    line.includes("SBG confirmation email")
+  );
+  const detailLine =
+    lines
+      .slice(
+        Math.max(
+          0,
+          lines.findIndex((line) =>
+            line.includes("SBG confirmation email status")
+          ) + 1
+        )
+      )
+      .find((line) => line.trim().length > 0) ?? null;
+  const detail = detailLine || statusLine || "Not recorded";
+  const isSent = detail.toLowerCase().includes("sent");
+  const isSkipped = detail.toLowerCase().includes("skipped");
+
+  return {
+    detail,
+    label: isSent ? "Sent" : isSkipped ? "Not configured" : "Needs check",
+  };
 }
 
 export default async function DepositSubmissionsPage() {
@@ -168,64 +178,70 @@ export default async function DepositSubmissionsPage() {
           "Status",
           "Action",
         ],
-        rows: submissions.map((submission) => [
-          depositorLabel(submission, members),
-          submission.contribution_month ?? "No month",
-          money(submission.amount),
-          `${money(submission.emergency_amount)} / ${money(submission.investment_amount)}`,
-          submission.deposit_date ? dateLabel(submission.deposit_date) : "No date",
-          submission.bank_reference ?? "No reference",
-          submission.confidence !== null && submission.confidence !== undefined
-            ? `${Math.round(submission.confidence * 100)}%`
-            : "Manual",
-          proofUrls.get(submission.id) ? (
-            <a
-              key={`${submission.id}-proof`}
-              href={proofUrls.get(submission.id)}
-              target="_blank"
-              rel="noreferrer"
-              className="font-semibold text-brand-600 hover:underline dark:text-brand-300"
-            >
-              View
-            </a>
+        rows: submissions.map((submission) => {
+          const proofUrl = proofUrls.get(submission.id);
+          const member = members[submission.member_id];
+          const registeredName = memberName(member);
+          const sbgEmail = getSbgEmailDetail(submission.extracted_text);
+          const reviewButton = proofUrl ? (
+            <DepositProofReview
+              key={`${submission.id}-proof-review`}
+              submission={{
+                id: submission.id,
+                memberName:
+                  registeredName !== "Unknown member"
+                    ? registeredName
+                    : submission.sender_name || "Member record hidden",
+                memberEmail: member?.email ?? null,
+                contributionMonth: submission.contribution_month ?? "No month",
+                amount: money(submission.amount),
+                emergencyAmount: money(submission.emergency_amount),
+                investmentAmount: money(submission.investment_amount),
+                depositDate: submission.deposit_date
+                  ? dateLabel(submission.deposit_date)
+                  : "No date",
+                bankReference: submission.bank_reference ?? "No reference",
+                confidence:
+                  submission.confidence !== null &&
+                  submission.confidence !== undefined
+                    ? `${Math.round(submission.confidence * 100)}%`
+                    : "Manual",
+                status: submission.status ?? "submitted",
+                submittedAt: dateLabel(submission.created_at),
+                proofUrl,
+                proofPath: submission.proof_url,
+                senderName: submission.sender_name,
+                sbgEmailLabel: sbgEmail.label,
+                sbgEmailDetail: sbgEmail.detail,
+              }}
+            />
           ) : (
             "No file"
-          ),
-          <SbgEmailStatus
-            key={`${submission.id}-sbg-email`}
-            text={submission.extracted_text}
-          />,
-          <StatusPill key={`${submission.id}-status`} status={submission.status} />,
-          submission.status === "submitted" || submission.status === "needs_review" ? (
-            <div key={`${submission.id}-actions`} className="flex min-w-56 flex-col gap-2">
-              <form action={approveDepositSubmission}>
-                <input type="hidden" name="submission_id" value={submission.id} />
-                <button
-                  type="submit"
-                  className="w-full rounded-md bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700"
-                >
-                  Approve and Post
-                </button>
-              </form>
-              <form action={rejectDepositSubmission} className="grid gap-2">
-                <input type="hidden" name="submission_id" value={submission.id} />
-                <input
-                  name="rejection_reason"
-                  placeholder="Reason if rejected"
-                  className="h-9 rounded-md border border-gray-200 bg-white px-2 text-xs text-gray-900 dark:border-white/15 dark:bg-white/10 dark:text-white"
-                />
-                <button
-                  type="submit"
-                  className="w-full rounded-md border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 dark:border-rose-400/30 dark:text-rose-200 dark:hover:bg-rose-500/10"
-                >
-                  Reject
-                </button>
-              </form>
-            </div>
-          ) : (
-            dateLabel(submission.reviewed_at)
-          ),
-        ]),
+          );
+
+          return [
+            depositorLabel(submission, members),
+            submission.contribution_month ?? "No month",
+            money(submission.amount),
+            `${money(submission.emergency_amount)} / ${money(submission.investment_amount)}`,
+            submission.deposit_date ? dateLabel(submission.deposit_date) : "No date",
+            submission.bank_reference ?? "No reference",
+            submission.confidence !== null && submission.confidence !== undefined
+              ? `${Math.round(submission.confidence * 100)}%`
+              : "Manual",
+            reviewButton,
+            <SbgEmailStatus
+              key={`${submission.id}-sbg-email`}
+              text={submission.extracted_text}
+            />,
+            <StatusPill key={`${submission.id}-status`} status={submission.status} />,
+            submission.status === "submitted" || submission.status === "needs_review"
+              ? proofUrl
+                ? "Open review"
+                : "Awaiting proof"
+              : dateLabel(submission.reviewed_at),
+          ];
+        }),
         empty: "No deposit submissions have been received yet.",
       }}
     />
