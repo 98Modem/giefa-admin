@@ -28,6 +28,41 @@ function envCheck(label: string, key: string, required = true): Check {
   };
 }
 
+function emailValue(value: string) {
+  const match = value.match(/<([^<>@\s]+@[^<>@\s]+\.[^<>@\s]+)>/);
+  return match?.[1] ?? value;
+}
+
+function isEmail(value: string) {
+  return /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(emailValue(value).trim());
+}
+
+function envEmailCheck(label: string, key: string, required = true): Check {
+  const value = process.env[key]?.trim();
+
+  if (!value) {
+    return {
+      label,
+      status: required ? "error" : "warning",
+      detail: `${key} is missing`,
+    };
+  }
+
+  if (!isEmail(value)) {
+    return {
+      label,
+      status: "error",
+      detail: `${key} is not a valid email address`,
+    };
+  }
+
+  return {
+    label,
+    status: "ok",
+    detail: `${key} is configured and valid`,
+  };
+}
+
 function StatusPill({ status }: { status: HealthStatus }) {
   const classes =
     status === "ok"
@@ -140,9 +175,9 @@ export default async function SystemHealthPage() {
 
   const emailChecks = [
     envCheck("Resend API key", "RESEND_API_KEY"),
-    envCheck("Sender address", "GIEFA_EMAIL_FROM"),
-    envCheck("Reply-to address", "GIEFA_EMAIL_REPLY_TO", false),
-    envCheck("SBG confirmation recipient", "SBG_DEPOSIT_CONFIRMATION_EMAIL"),
+    envEmailCheck("Sender address", "GIEFA_EMAIL_FROM"),
+    envEmailCheck("Reply-to address", "GIEFA_EMAIL_REPLY_TO", false),
+    envEmailCheck("SBG confirmation recipient", "SBG_DEPOSIT_CONFIRMATION_EMAIL"),
     envCheck("SBG group account", "SBG_GROUP_ACCOUNT_NUMBER"),
     envCheck("SBG group account name", "SBG_GROUP_ACCOUNT_NAME"),
     envCheck("SBG money market account", "SBG_MONEY_MARKET_ACCOUNT_NUMBER"),

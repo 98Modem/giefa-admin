@@ -33,6 +33,15 @@ function env(name: string) {
   return process.env[name]?.trim() || "";
 }
 
+function emailValue(value: string) {
+  const match = value.match(/<([^<>@\s]+@[^<>@\s]+\.[^<>@\s]+)>/);
+  return match?.[1] ?? value;
+}
+
+function isEmail(value: string) {
+  return /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(emailValue(value).trim());
+}
+
 function escapeHtml(value: string) {
   return value
     .replace(/&/g, "&amp;")
@@ -151,6 +160,30 @@ export async function sendDepositConfirmationEmail(
       status: "skipped",
       message:
         "SBG confirmation email skipped because RESEND_API_KEY or SBG_DEPOSIT_CONFIRMATION_EMAIL is not configured.",
+    };
+  }
+
+  if (!isEmail(to)) {
+    return {
+      status: "failed",
+      message:
+        "SBG confirmation email failed: SBG_DEPOSIT_CONFIRMATION_EMAIL must be a real email address.",
+    };
+  }
+
+  if (!isEmail(from)) {
+    return {
+      status: "failed",
+      message:
+        "SBG confirmation email failed: GIEFA_EMAIL_FROM must be a real sender address, for example GIEFA Deposits <deposits@giefa.org>.",
+    };
+  }
+
+  if (replyTo && !isEmail(replyTo)) {
+    return {
+      status: "failed",
+      message:
+        "SBG confirmation email failed: GIEFA_EMAIL_REPLY_TO must be a real email address.",
     };
   }
 
