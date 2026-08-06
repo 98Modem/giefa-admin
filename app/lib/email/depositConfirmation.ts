@@ -33,6 +33,15 @@ function env(name: string) {
   return process.env[name]?.trim() || "";
 }
 
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 function buildBody(input: SendDepositConfirmationInput) {
   const groupAccountNumber = env("SBG_GROUP_ACCOUNT_NUMBER") || "0000013863";
   const groupAccountName =
@@ -44,23 +53,32 @@ function buildBody(input: SendDepositConfirmationInput) {
     input.bankReference ||
     input.submissionIds[0] ||
     `GIEFA-${input.depositDate}-${input.memberName.replace(/\s+/g, "-")}`;
+  const accountDetails = [
+    ["Group Account Number", groupAccountNumber],
+    ["Group Account Name", groupAccountName],
+    ["Money Market Fund Account Number", moneyMarketAccount],
+  ];
+  const depositDetails = [
+    ["Reference number", reference],
+    ["Deposit date", input.depositDate],
+    ["Total amount deposited", `UGX ${money(input.totalAmount)}`],
+    ["Depositor / member", input.memberName],
+    ...(input.memberEmail ? [["Member email", input.memberEmail]] : []),
+    ...(input.senderName && input.senderName !== input.memberName
+      ? [["Proof sender name", input.senderName]]
+      : []),
+  ];
 
   const text = [
     "Dear SBG Security Team,",
     "",
     "I have deposited money onto the Money Market Account as follows:",
     "",
-    `Group Account Number: ${groupAccountNumber}`,
-    `Group Account Name: ${groupAccountName}`,
-    `Money Market Fund Account Number: ${moneyMarketAccount}`,
-    `Reference number: ${reference}`,
-    `Deposit date: ${input.depositDate}`,
-    `Total amount deposited: UGX ${money(input.totalAmount)}`,
-    `Depositor / member: ${input.memberName}`,
-    input.memberEmail ? `Member email: ${input.memberEmail}` : "",
-    input.senderName && input.senderName !== input.memberName
-      ? `Proof sender name: ${input.senderName}`
-      : "",
+    "Account details",
+    ...accountDetails.map(([label, value]) => `- ${label}: ${value}`),
+    "",
+    "Deposit details",
+    ...depositDetails.map(([label, value]) => `- ${label}: ${value}`),
     "",
     "Deposit proof is attached for your confirmation and processing.",
     "",
@@ -68,13 +86,37 @@ function buildBody(input: SendDepositConfirmationInput) {
     input.memberName,
   ].filter(Boolean);
 
-  const html = text
-    .map((line) =>
-      line
-        ? `<p style="margin:0 0 10px;color:#111827;font-family:Arial,sans-serif;font-size:14px;line-height:1.5">${line}</p>`
-        : `<div style="height:8px"></div>`
-    )
-    .join("");
+  const detailRows = (rows: string[][]) =>
+    rows
+      .map(
+        ([label, value]) => `
+          <tr>
+            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#4b5563;font-size:13px;width:38%;vertical-align:top">${escapeHtml(label)}</td>
+            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#111827;font-size:13px;font-weight:600;vertical-align:top">${escapeHtml(value)}</td>
+          </tr>`
+      )
+      .join("");
+
+  const section = (title: string, rows: string[][]) => `
+    <div style="margin:18px 0 0">
+      <h2 style="margin:0 0 8px;color:#111827;font-family:Arial,sans-serif;font-size:15px;line-height:1.4">${escapeHtml(title)}</h2>
+      <table role="presentation" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;background:#ffffff;font-family:Arial,sans-serif">
+        ${detailRows(rows)}
+      </table>
+    </div>`;
+
+  const html = `
+    <div style="margin:0;padding:0;background:#ffffff">
+      <div style="max-width:680px;margin:0;padding:6px 0 0;font-family:Arial,sans-serif;color:#111827">
+        <p style="margin:0 0 12px;font-size:14px;line-height:1.6">Dear SBG Security Team,</p>
+        <p style="margin:0 0 14px;font-size:14px;line-height:1.6">I have deposited money onto the Money Market Account as follows:</p>
+        ${section("Account details", accountDetails)}
+        ${section("Deposit details", depositDetails)}
+        <p style="margin:18px 0 12px;font-size:14px;line-height:1.6">Deposit proof is attached for your confirmation and processing.</p>
+        <p style="margin:0 0 4px;font-size:14px;line-height:1.6">Kind regards,</p>
+        <p style="margin:0;font-size:14px;line-height:1.6;font-weight:600">${escapeHtml(input.memberName)}</p>
+      </div>
+    </div>`;
 
   return { text: text.join("\n"), html };
 }
