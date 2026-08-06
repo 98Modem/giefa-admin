@@ -40,6 +40,12 @@ export default async function DepositProofPage() {
     (submission) => submission.status === "approved"
   ).length;
   const latestSubmission = mySubmissions[0];
+  const memberName =
+    member
+      ? [member.first_name, member.last_name].filter(Boolean).join(" ") ||
+        member.email ||
+        "GIEFA member"
+      : "GIEFA member";
 
   return (
     <div className="mx-auto max-w-7xl space-y-4 sm:space-y-5">
@@ -86,7 +92,7 @@ export default async function DepositProofPage() {
         </div>
       </section>
 
-      <DepositProofForm action={submitDepositProof} />
+      <DepositProofForm action={submitDepositProof} memberName={memberName} />
 
       <section className="overflow-hidden rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface)] shadow-sm">
         <div className="flex flex-col gap-1 border-b border-[var(--app-border)] px-4 py-4 sm:px-5">

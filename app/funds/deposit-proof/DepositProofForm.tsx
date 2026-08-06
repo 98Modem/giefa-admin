@@ -11,6 +11,7 @@ import {
 
 type DepositProofFormProps = {
   action: (formData: FormData) => void | Promise<void>;
+  memberName: string;
 };
 
 type Extraction = {
@@ -188,7 +189,7 @@ function sortMonthValues(values: string[]) {
   return [...values].sort((a, b) => a.localeCompare(b));
 }
 
-export function DepositProofForm({ action }: DepositProofFormProps) {
+export function DepositProofForm({ action, memberName }: DepositProofFormProps) {
   const [isScanning, startScan] = useTransition();
   const [selectedProofs, setSelectedProofs] = useState<SelectedProof[]>([]);
   const [extraction, setExtraction] = useState<Extraction | null>(null);
@@ -357,7 +358,7 @@ export function DepositProofForm({ action }: DepositProofFormProps) {
     }
     setInputValue(dateRef, next.deposit_date);
     setInputValue(referenceRef, next.bank_reference);
-    setInputValue(senderRef, next.sender_name);
+    setInputValue(senderRef, memberName);
     setInputValue(confidenceRef, next.confidence);
     setInputValue(notesRef, next.notes);
   }
@@ -912,9 +913,13 @@ export function DepositProofForm({ action }: DepositProofFormProps) {
                   ref={senderRef}
                   name="sender_name"
                   type="text"
-                  placeholder="Name shown on proof"
-                  className={fieldClass}
+                  value={memberName}
+                  readOnly
+                  className={`${fieldClass} cursor-not-allowed bg-gray-50 text-gray-700 dark:bg-white/5 dark:text-gray-200`}
                 />
+                <p className={hintClass}>
+                  This is taken from your approved member profile.
+                </p>
               </label>
             </div>
 

@@ -7,10 +7,6 @@ type DepositConfirmationAttachment = {
 type SendDepositConfirmationInput = {
   memberName: string;
   memberEmail: string | null;
-  totalAmount: number;
-  emergencyAmount: number;
-  investmentAmount: number;
-  contributionMonths: string[];
   depositDate: string;
   bankReference: string | null;
   senderName: string | null;
@@ -24,13 +20,6 @@ export type DepositConfirmationEmailResult = {
 };
 
 const resendEndpoint = "https://api.resend.com/emails";
-
-function money(value: number) {
-  return new Intl.NumberFormat("en-UG", {
-    maximumFractionDigits: 0,
-    minimumFractionDigits: 0,
-  }).format(value);
-}
 
 function env(name: string) {
   return process.env[name]?.trim() || "";
@@ -47,7 +36,6 @@ function buildBody(input: SendDepositConfirmationInput) {
     input.bankReference ||
     input.submissionIds[0] ||
     `GIEFA-${input.depositDate}-${input.memberName.replace(/\s+/g, "-")}`;
-  const months = input.contributionMonths.join(", ");
 
   const text = [
     "Dear SBG Security Team,",
@@ -64,10 +52,6 @@ function buildBody(input: SendDepositConfirmationInput) {
     input.senderName && input.senderName !== input.memberName
       ? `Proof sender name: ${input.senderName}`
       : "",
-    `Contribution month(s): ${months}`,
-    `Total amount: UGX ${money(input.totalAmount)}`,
-    `Emergency allocation: UGX ${money(input.emergencyAmount)}`,
-    `Investment allocation: UGX ${money(input.investmentAmount)}`,
     "",
     "Deposit proof is attached for your confirmation and processing.",
     "",

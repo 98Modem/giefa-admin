@@ -80,7 +80,6 @@ export async function submitDepositProof(formData: FormData) {
   const contributionMonths = parseContributionMonths(formData, contributionMonth);
   const depositDate = getString(formData, "deposit_date");
   const bankReference = getString(formData, "bank_reference");
-  const senderName = getString(formData, "sender_name");
   const extractionNotes = getString(formData, "extraction_notes");
   const extractionConfidence = getNumber(formData, "extraction_confidence");
   const proofs = getProofFiles(formData);
@@ -120,6 +119,11 @@ export async function submitDepositProof(formData: FormData) {
   if (!member) {
     throw new Error("Only approved members can submit deposit proof.");
   }
+
+  const memberName =
+    [member.first_name, member.last_name].filter(Boolean).join(" ") ||
+    session.user.email ||
+    "GIEFA member";
 
   let proofUrl: string | null = null;
   const uploadedProofPaths: string[] = [];
@@ -163,10 +167,7 @@ export async function submitDepositProof(formData: FormData) {
     investment_amount: investmentSplits[index],
     deposit_date: depositDate,
     bank_reference: bankReference || null,
-    sender_name:
-      senderName ||
-      [member.first_name, member.last_name].filter(Boolean).join(" ") ||
-      null,
+    sender_name: memberName,
     proof_url: proofUrl,
     extracted_text: extractedText,
     confidence:
@@ -185,11 +186,6 @@ export async function submitDepositProof(formData: FormData) {
   const submissionIds =
     insertedSubmissions?.map((submission: { id: string }) => submission.id) ??
     [];
-  const memberName =
-    [member.first_name, member.last_name].filter(Boolean).join(" ") ||
-    senderName ||
-    session.user.email ||
-    "GIEFA member";
 
   let emailResultMessage = "";
   try {
@@ -197,13 +193,9 @@ export async function submitDepositProof(formData: FormData) {
     const emailResult = await sendDepositConfirmationEmail({
       memberName,
       memberEmail: member.email || session.user.email || null,
-      totalAmount,
-      emergencyAmount,
-      investmentAmount,
-      contributionMonths,
       depositDate,
       bankReference: bankReference || null,
-      senderName: senderName || null,
+      senderName: memberName,
       submissionIds,
       attachments,
     });
