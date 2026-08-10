@@ -9,6 +9,7 @@ import {
   useState,
   useTransition,
 } from "react";
+import { createPortal } from "react-dom";
 import {
   approveDepositSubmission,
   rejectDepositSubmission,
@@ -133,7 +134,7 @@ export function DepositProofReview({
     setIsDragging(false);
   };
 
-  const zoomImageWithWheel = (event: WheelEvent<HTMLImageElement>) => {
+  const zoomImageWithWheel = (event: WheelEvent<HTMLDivElement>) => {
     if (isPdf) return;
     event.preventDefault();
     updateZoom(zoom + (event.deltaY > 0 ? -0.15 : 0.15));
@@ -188,9 +189,11 @@ export function DepositProofReview({
         Review
       </button>
 
-      {open && (
+      {open &&
+        typeof document !== "undefined" &&
+        createPortal(
         <div
-          className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/70 p-3 backdrop-blur-md transition-opacity sm:p-6"
+          className="fixed inset-x-0 inset-y-0 z-[100000] isolate overflow-y-auto overscroll-contain bg-slate-950/75 p-2 backdrop-blur-md transition-opacity sm:p-5"
           role="dialog"
           aria-modal="true"
           aria-label="Deposit proof review"
@@ -198,8 +201,12 @@ export function DepositProofReview({
             if (event.target === event.currentTarget) setOpen(false);
           }}
         >
-          <div className="flex max-h-[94vh] w-full max-w-[94rem] animate-[proofReviewIn_180ms_ease-out] flex-col overflow-hidden rounded-3xl border border-white/20 bg-[var(--app-surface)] shadow-2xl ring-1 ring-black/5 dark:ring-white/10">
-            <div className="flex items-start justify-between gap-4 border-b border-[var(--app-border)] px-4 py-4 sm:px-6">
+          <div className="flex min-h-full items-start justify-center sm:items-center">
+          <div
+            className="flex max-h-[calc(100dvh-1rem)] w-[min(100%,92rem)] animate-[proofReviewIn_180ms_ease-out] flex-col overflow-hidden rounded-2xl border border-white/20 bg-[var(--app-surface)] shadow-2xl ring-1 ring-black/5 dark:ring-white/10 sm:max-h-[calc(100dvh-2.5rem)] sm:rounded-3xl"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="flex shrink-0 items-start justify-between gap-4 border-b border-[var(--app-border)] px-4 py-4 sm:px-6">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-300">
                   Proof review
@@ -224,10 +231,10 @@ export function DepositProofReview({
               </button>
             </div>
 
-            <div className="grid min-h-0 flex-1 gap-0 overflow-y-auto lg:grid-cols-[minmax(0,1.38fr)_minmax(23rem,0.62fr)] lg:overflow-hidden">
-              <section className="min-h-[52vh] border-b border-[var(--app-border)] bg-slate-100/70 p-3 dark:bg-slate-950/30 lg:min-h-0 lg:border-b-0 lg:border-r">
+            <div className="grid min-h-0 flex-1 gap-0 overflow-y-auto lg:grid-cols-[minmax(0,1.18fr)_minmax(20rem,0.82fr)]">
+              <section className="min-h-[42dvh] border-b border-[var(--app-border)] bg-slate-100/70 p-2 dark:bg-slate-950/30 sm:min-h-[50dvh] sm:p-3 lg:min-h-0 lg:border-b-0 lg:border-r">
                 <div
-                  className={`relative flex h-full min-h-[52vh] touch-none items-center justify-center overflow-hidden rounded-2xl border border-[var(--app-border)] bg-white dark:bg-slate-950 ${
+                  className={`relative flex h-full min-h-[42dvh] items-center justify-center overflow-hidden rounded-2xl border border-[var(--app-border)] bg-white dark:bg-slate-950 sm:min-h-[50dvh] ${
                     !isPdf && zoom > 1
                       ? isDragging
                         ? "cursor-grabbing"
@@ -238,9 +245,11 @@ export function DepositProofReview({
                   onPointerMove={moveImageDrag}
                   onPointerUp={stopImageDrag}
                   onPointerCancel={stopImageDrag}
+                  onWheel={zoomImageWithWheel}
+                  style={{ touchAction: !isPdf && zoom > 1 ? "none" : "pan-y" }}
                 >
                   {!isPdf && (
-                    <div className="absolute left-3 top-3 z-10 flex items-center gap-2 rounded-2xl border border-white/70 bg-white/90 p-1.5 shadow-lg backdrop-blur dark:border-white/10 dark:bg-slate-900/90">
+                    <div className="absolute left-2 top-2 z-10 flex items-center gap-1.5 rounded-2xl border border-white/70 bg-white/90 p-1.5 shadow-lg backdrop-blur dark:border-white/10 dark:bg-slate-900/90 sm:left-3 sm:top-3 sm:gap-2">
                       <button
                         type="button"
                         onClick={() => updateZoom(zoom - 0.25)}
@@ -273,7 +282,7 @@ export function DepositProofReview({
                     <iframe
                       src={submission.proofUrl}
                       title={`Deposit proof for ${submission.memberName}`}
-                      className="h-[74vh] w-full bg-white"
+                      className="h-[58dvh] w-full bg-white sm:h-[72dvh]"
                     />
                   ) : (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -281,8 +290,7 @@ export function DepositProofReview({
                       src={submission.proofUrl}
                       alt={`Deposit proof for ${submission.memberName}`}
                       draggable={false}
-                      onWheel={zoomImageWithWheel}
-                      className={`max-h-[74vh] max-w-full select-none object-contain ${
+                      className={`max-h-[68dvh] max-w-full select-none object-contain sm:max-h-[72dvh] ${
                         isDragging ? "" : "transition-transform duration-150"
                       }`}
                       style={{
@@ -294,7 +302,7 @@ export function DepositProofReview({
                 </div>
               </section>
 
-              <section className="min-h-0 space-y-4 overflow-y-auto p-4 sm:p-5">
+              <section className="min-h-0 space-y-4 overflow-y-auto p-3 sm:p-5">
                 <div className="grid grid-cols-2 gap-3">
                   <DetailRow label="Amount" value={submission.amount} emphasis />
                   <DetailRow label="Month" value={submission.contributionMonth} />
@@ -306,13 +314,12 @@ export function DepositProofReview({
 
                 <div className="grid gap-3">
                   <DetailRow label="Registered member" value={submission.memberName} />
-                  <DetailRow label="Member email" value={submission.memberEmail} />
-                  <DetailRow label="AI read" value={submission.confidence} />
+                  <DetailRow label="Proof sender" value={submission.senderName} />
                   <DetailRow
                     label="SBG email"
                     value={
                       submission.sbgEmailLabel === "Sent"
-                        ? "Confirmation sent"
+                        ? "Sent to SBG"
                         : "Needs email check"
                     }
                   />
@@ -353,16 +360,10 @@ export function DepositProofReview({
                   </div>
                 )}
 
-                <div className="rounded-2xl border border-[var(--app-border)] bg-white/70 p-3 text-xs text-gray-500 dark:bg-white/5 dark:text-gray-300">
-                  Sender shown on proof:{" "}
-                  <span className="font-semibold text-gray-800 dark:text-gray-100">
-                    {submission.senderName || "Not recorded"}
-                  </span>
-                </div>
               </section>
             </div>
 
-            <div className="grid gap-3 border-t border-[var(--app-border)] bg-white/85 px-4 py-3 backdrop-blur dark:bg-slate-950/85 sm:px-6 lg:grid-cols-[1fr_auto] lg:items-center">
+            <div className="sticky bottom-0 z-20 grid shrink-0 gap-3 border-t border-[var(--app-border)] bg-white/95 px-4 py-3 backdrop-blur dark:bg-slate-950/95 sm:px-6 lg:grid-cols-[1fr_auto] lg:items-center">
               <p className="text-xs text-gray-500 dark:text-gray-300">
                 Review the proof image, compare amount/date/reference/member,
                 then post to the ledger or reject for correction.
@@ -406,6 +407,7 @@ export function DepositProofReview({
               </div>
             </div>
           </div>
+          </div>
           <style jsx global>{`
             @keyframes proofReviewIn {
               from {
@@ -418,7 +420,8 @@ export function DepositProofReview({
               }
             }
           `}</style>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );

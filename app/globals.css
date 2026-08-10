@@ -5,6 +5,23 @@
 
 @custom-variant dark (&:is(.dark *));
 
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+body {
+  min-width: 0;
+}
+
 
 @theme {
   --font-*: initial;
@@ -274,10 +291,14 @@
 }
 
 .app-shell {
+  max-width: 100vw;
+  overflow-x: hidden;
   background: var(--app-bg);
 }
 
 .app-main {
+  max-width: 100%;
+  overflow-x: hidden;
   background:
     radial-gradient(circle at top right, var(--app-overlay), transparent 28rem),
     transparent;
