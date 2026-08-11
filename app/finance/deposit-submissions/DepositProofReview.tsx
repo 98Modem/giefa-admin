@@ -95,6 +95,7 @@ export function DepositProofReview({
 
   const zoomRef = useRef(1);
   const panRef = useRef<Point>({ x: 0, y: 0 });
+  const rejectionReasonRef = useRef<HTMLTextAreaElement>(null);
   const activePointers = useRef(new Map<number, Point>());
   const dragStart = useRef<{
     pointerId: number;
@@ -271,9 +272,20 @@ export function DepositProofReview({
   };
 
   const reject = () => {
+    const rejectionReason = reason.trim();
+    if (!rejectionReason) {
+      setActionError("Enter a rejection reason before rejecting this submission.");
+      rejectionReasonRef.current?.focus();
+      rejectionReasonRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+      return;
+    }
+
     const formData = new FormData();
     formData.set("submission_id", submission.id);
-    formData.set("rejection_reason", reason);
+    formData.set("rejection_reason", rejectionReason);
     setActionError(null);
     startTransition(async () => {
       try {
@@ -451,8 +463,12 @@ export function DepositProofReview({
                 <label className="block text-sm font-semibold text-gray-950 dark:text-white">
                   Rejection reason
                   <textarea
+                    ref={rejectionReasonRef}
                     className="mt-2 min-h-24 w-full resize-y rounded-lg border border-gray-300 bg-white p-3 text-base text-gray-950 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-white/20 dark:bg-slate-950 dark:text-white"
-                    onChange={(event) => setReason(event.target.value)}
+                    onChange={(event) => {
+                      setReason(event.target.value);
+                      if (event.target.value.trim()) setActionError(null);
+                    }}
                     placeholder="Required only when rejecting"
                     value={reason}
                   />
@@ -498,7 +514,7 @@ export function DepositProofReview({
               <>
                 <button
                   className="min-h-11 rounded-lg bg-red-600 px-4 text-sm font-bold text-white transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={isPending || !reason.trim()}
+                  disabled={isPending}
                   onClick={reject}
                   type="button"
                 >
