@@ -9,10 +9,13 @@ import { supabaseBrowser } from "@/app/lib/supabase/client";
 
 import {
   ArrowLeftOnRectangleIcon,
-  Bars3Icon,
+  ChevronDoubleLeftIcon,
+  ChevronDoubleRightIcon,
   ChevronRightIcon,
+  XMarkIcon,
 } from "@heroicons/react/24/outline";
 
+import { GiefaLogoMark } from "@/app/components/brand/GiefaLogoMark";
 import { Role } from "@/app/employee_type/roles";
 import { SidebarPosition } from "@/app/lib/preferences";
 
@@ -37,13 +40,13 @@ function Tooltip({
   return (
     <span
       className={clsx(
-        "absolute top-1/2 z-[120] -translate-y-1/2 whitespace-nowrap rounded-md bg-brand-950 px-3 py-1 text-xs text-white opacity-0 transition-opacity pointer-events-none group-hover:opacity-100",
+        "theme-sidebar-panel pointer-events-none absolute top-1/2 z-[120] -translate-y-1/2 whitespace-nowrap rounded-lg border px-3 py-2 text-xs font-semibold text-gray-800 opacity-0 shadow-xl ring-1 ring-black/5 transition-opacity group-hover:opacity-100 dark:text-white dark:ring-white/10",
         opensLeft ? "right-full mr-3" : "left-full ml-3"
       )}
     >
       <span
         className={clsx(
-          "absolute top-1/2 h-2 w-2 -translate-y-1/2 rotate-45 bg-brand-950",
+          "absolute top-1/2 h-2 w-2 -translate-y-1/2 rotate-45 border-[var(--app-border)] bg-[var(--app-surface-strong)]",
           opensLeft ? "-right-1" : "-left-1"
         )}
       />
@@ -62,10 +65,10 @@ function SidebarLoadingShell({
   return (
     <aside
       className={clsx(
-        "theme-sidebar fixed left-0 top-0 z-[80] flex h-screen w-[min(20rem,86vw)] shrink-0 flex-col border-r transition-transform duration-300 lg:w-72.5",
+        "theme-sidebar fixed left-0 top-0 z-[80] flex h-dvh w-[min(20rem,86vw)] shrink-0 flex-col border-r transition-transform duration-300 lg:w-72.5",
         mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
         position === "floating"
-          ? "lg:left-4 lg:top-4 lg:h-[calc(100vh-2rem)] lg:rounded-2xl lg:border lg:shadow-2xl"
+          ? "lg:left-4 lg:top-4 lg:h-[calc(100dvh-2rem)] lg:rounded-2xl lg:border lg:shadow-2xl"
           : "lg:sticky lg:top-0"
       )}
     >
@@ -150,7 +153,7 @@ export default function Sidebar({
     flyoutCloseTimer.current = window.setTimeout(() => {
       setOpenMenu((current) => (current === menuKey ? null : current));
       flyoutCloseTimer.current = null;
-    }, 220);
+    }, 500);
   };
 
   /* -----------------------------------
@@ -274,36 +277,49 @@ export default function Sidebar({
       <aside
         data-sidebar-navigation
         className={clsx(
-          "theme-sidebar fixed left-0 top-0 z-[80] flex h-screen w-[min(20rem,86vw)] shrink-0 flex-col overflow-visible transition-all duration-300 lg:sticky lg:top-0",
+          "theme-sidebar fixed left-0 top-0 z-[80] flex h-dvh w-[min(20rem,86vw)] shrink-0 flex-col overflow-visible transition-all duration-300 lg:sticky lg:top-0",
           mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
           isFloating
-            ? "theme-sidebar-floating lg:left-4 lg:top-4 lg:h-[calc(100vh-2rem)] lg:rounded-2xl lg:border"
+            ? "theme-sidebar-floating lg:left-4 lg:top-4 lg:h-[calc(100dvh-2rem)] lg:rounded-2xl lg:border"
             : clsx("border-r", isRight && "lg:border-l lg:border-r-0"),
           compact ? "lg:w-22.5" : "lg:w-72.5"
         )}
       >
       <div
         className={clsx(
-          "px-4 pb-4 pt-5",
-          compact ? "justify-center" : "justify-between"
+          "px-3 pb-4 pt-4",
+          compact && "px-2"
         )}
       >
         <div
           className={clsx(
-            "flex min-h-14 items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.07] px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]",
-            compact ? "justify-center" : "justify-between"
+            "flex min-h-16 items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.075] p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.09),0_14px_35px_-28px_rgba(0,0,0,0.9)]",
+            compact ? "flex-col justify-center" : "justify-between"
           )}
         >
-          {!compact && (
-            <div className="min-w-0">
-              <p className="text-base font-bold tracking-wide text-white">
-                GIEFA
-              </p>
-              <p className="mt-0.5 truncate text-[11px] font-medium uppercase tracking-[0.18em] text-white/45">
-                Cooperative banking
-              </p>
-            </div>
-          )}
+          <Link
+            aria-label="Go to GIEFA dashboard"
+            className={clsx(
+              "flex min-w-0 items-center gap-2.5 rounded-xl transition hover:bg-white/[0.07]",
+              compact ? "justify-center p-1" : "flex-1 px-1.5 py-1"
+            )}
+            href="/dashboard"
+            onClick={closeMobileNavigation}
+          >
+            <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-xl border border-white/15 bg-white/10 shadow-inner">
+              <GiefaLogoMark className="size-12" />
+            </span>
+            {!compact && (
+              <span className="min-w-0">
+                <span className="block text-base font-bold tracking-[0.08em] text-white">
+                  GIEFA
+                </span>
+                <span className="mt-0.5 block truncate text-[10px] font-semibold uppercase tracking-[0.16em] text-white/45">
+                  Association portal
+                </span>
+              </span>
+            )}
+          </Link>
           <button
             onClick={() => {
               setOpenMenu(null);
@@ -314,10 +330,22 @@ export default function Sidebar({
 
               setCollapsed(!collapsed);
             }}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white/75 transition hover:bg-white/[0.12] hover:text-white"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-black/10 text-white/70 transition hover:border-white/20 hover:bg-white/[0.12] hover:text-white"
             aria-label={mobileOpen ? "Close sidebar" : compact ? "Expand sidebar" : "Collapse sidebar"}
           >
-            <Bars3Icon className="h-5 w-5" />
+            {mobileOpen ? (
+              <XMarkIcon className="h-5 w-5" />
+            ) : compact ? (
+              isRight ? (
+                <ChevronDoubleLeftIcon className="h-5 w-5" />
+              ) : (
+                <ChevronDoubleRightIcon className="h-5 w-5" />
+              )
+            ) : isRight ? (
+              <ChevronDoubleRightIcon className="h-5 w-5" />
+            ) : (
+              <ChevronDoubleLeftIcon className="h-5 w-5" />
+            )}
           </button>
         </div>
       </div>
@@ -328,6 +356,12 @@ export default function Sidebar({
           compact ? "overflow-visible" : "overflow-y-auto"
         )}
       >
+        {!compact && (
+          <div className="mb-1 flex items-center gap-2 px-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/35">
+            <span>Workspace</span>
+            <span className="h-px flex-1 bg-white/10" />
+          </div>
+        )}
         {SIDEBAR_MENU
           .filter((item: SidebarItem) =>
             item.roles.includes(role as Role)
@@ -383,10 +417,11 @@ export default function Sidebar({
                     href={item.href}
                     onClick={closeMobileNavigation}
                     className={clsx(
-                      "relative flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 font-semibold transition-all duration-200",
+                      "relative flex min-h-12 items-center gap-3 rounded-xl border px-3 py-2.5 font-semibold transition-all duration-200",
+                      compact && "justify-center px-2",
                       itemActive
-                        ? "bg-white/[0.16] text-white shadow-[0_10px_30px_-20px_rgba(0,0,0,0.65)] ring-1 ring-white/15"
-                        : "text-white/70 hover:bg-white/[0.09] hover:text-white"
+                        ? "border-white/15 bg-white/[0.15] text-white shadow-[0_12px_32px_-22px_rgba(0,0,0,0.9)] ring-1 ring-white/10"
+                        : "border-transparent text-white/68 hover:border-white/10 hover:bg-white/[0.08] hover:text-white"
                     )}
                   >
                     {itemActive && (
@@ -399,7 +434,7 @@ export default function Sidebar({
                     )}
                     <span
                       className={clsx(
-                        "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition",
+                        "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition",
                         itemActive
                           ? "bg-white/[0.14] text-white"
                           : "text-white/70 group-hover:bg-white/10 group-hover:text-white"
@@ -421,10 +456,11 @@ export default function Sidebar({
                     }}
                     aria-expanded={compact ? isFlyoutOpen : isOpen}
                     className={clsx(
-                      "relative flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left font-semibold transition-all duration-200",
+                      "relative flex min-h-12 w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left font-semibold transition-all duration-200",
+                      compact && "justify-center px-2",
                       itemActive
-                        ? "bg-white/[0.16] text-white shadow-[0_10px_30px_-20px_rgba(0,0,0,0.65)] ring-1 ring-white/15"
-                        : "text-white/70 hover:bg-white/[0.09] hover:text-white"
+                        ? "border-white/15 bg-white/[0.15] text-white shadow-[0_12px_32px_-22px_rgba(0,0,0,0.9)] ring-1 ring-white/10"
+                        : "border-transparent text-white/68 hover:border-white/10 hover:bg-white/[0.08] hover:text-white"
                     )}
                   >
                     {itemActive && (
@@ -437,7 +473,7 @@ export default function Sidebar({
                     )}
                     <span
                       className={clsx(
-                        "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition",
+                        "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition",
                         itemActive
                           ? "bg-white/[0.14] text-white"
                           : "text-white/70 group-hover:bg-white/10 group-hover:text-white"
@@ -482,15 +518,14 @@ export default function Sidebar({
                           : "left-2 border-b border-l"
                       )}
                     />
-                    <div className="theme-sidebar-panel relative overflow-hidden rounded-lg border p-2 shadow-2xl ring-1 ring-white/10">
-                      <div className="absolute inset-x-0 top-0 h-1 bg-brand-500" />
-                      <div className="px-3 pb-2 pt-3">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-brand-500 dark:text-brand-300">
+                    <div className="theme-sidebar-panel relative overflow-hidden rounded-xl border p-2.5 shadow-[0_24px_70px_-24px_rgba(0,0,0,0.75)] ring-1 ring-black/5 dark:ring-white/10">
+                      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-brand-400 via-brand-500 to-brand-300" />
+                      <div className="px-3 pb-3 pt-3">
+                        <p className="text-xs font-bold uppercase tracking-[0.16em] text-brand-600 dark:text-brand-300">
                           {item.title}
                         </p>
                         <p className="mt-1 text-xs text-gray-500 dark:text-gray-300">
-                          {visibleSubItems.length} option
-                          {visibleSubItems.length === 1 ? "" : "s"}
+                          Choose a destination
                         </p>
                       </div>
                       <ul className="flex flex-col gap-1 border-t border-gray-100 pt-2 dark:border-white/10">
@@ -500,10 +535,10 @@ export default function Sidebar({
                               href={sub.href}
                               onClick={closeMobileNavigation}
                               className={clsx(
-                                "group/sub flex items-center justify-between rounded-md px-3 py-2.5 text-sm leading-5 transition-all duration-150",
+                                "group/sub flex items-center justify-between rounded-lg border border-transparent px-3 py-2.5 text-sm leading-5 transition-all duration-150",
                                 isActive(sub.href)
                                   ? "bg-brand-50 font-semibold text-brand-700 ring-1 ring-brand-100 dark:bg-brand-500/20 dark:text-white dark:ring-brand-400/20"
-                                  : "text-gray-700 hover:bg-brand-50 hover:pl-4 hover:text-brand-700 dark:text-gray-100 dark:hover:bg-white/10 dark:hover:text-white"
+                                  : "text-gray-700 hover:border-brand-100 hover:bg-brand-50 hover:text-brand-700 dark:text-gray-100 dark:hover:border-white/10 dark:hover:bg-white/10 dark:hover:text-white"
                               )}
                             >
                               <span>{sub.title}</span>
@@ -529,23 +564,23 @@ export default function Sidebar({
                     className={clsx(
                       "grid transition-all duration-200 ease-out",
                       isRight
-                        ? "mr-8 border-r border-white/15 pr-2"
-                        : "ml-8 border-l border-white/15 pl-2",
+                        ? "mr-7 border-r border-white/10 pr-2"
+                        : "ml-7 border-l border-white/10 pl-2",
                       isOpen
                         ? "grid-rows-[1fr] opacity-100"
                         : "grid-rows-[0fr] opacity-0"
                     )}
                   >
-                    <ul className="min-h-0 space-y-1 overflow-hidden">
+                    <ul className="min-h-0 space-y-1 overflow-hidden py-1">
                       {visibleSubItems.map((sub: SidebarSubItem) => (
                           <li key={sub.href}>
                             <Link
                               href={sub.href}
                               onClick={closeMobileNavigation}
                               className={clsx(
-                                "block rounded-lg px-3 py-2 text-sm leading-5 transition-all duration-150",
+                                "relative block rounded-lg px-3 py-2 text-sm leading-5 transition-all duration-150",
                                 isActive(sub.href)
-                                  ? "bg-white/[0.14] font-semibold text-white"
+                                  ? "bg-white/[0.13] font-semibold text-white ring-1 ring-white/10"
                                   : "text-white/[0.58] hover:bg-white/[0.09] hover:text-white"
                               )}
                             >
@@ -563,6 +598,16 @@ export default function Sidebar({
 
       <div className="theme-sidebar-footer mt-auto shrink-0 px-3 pb-4 pt-3">
         <div className="mb-3 h-px bg-white/10" />
+        {!compact && (
+          <div className="mb-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2.5">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
+              Signed in access
+            </p>
+            <p className="mt-1 text-sm font-semibold capitalize text-white/80">
+              {role.replaceAll("_", " ")}
+            </p>
+          </div>
+        )}
         <button
           onClick={handleLogout}
           disabled={loggingOut}
