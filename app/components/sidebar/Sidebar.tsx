@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import clsx from "clsx";
@@ -111,6 +111,7 @@ export default function Sidebar({
   onMobileClose,
 }: SidebarProps) {
   const pathname = usePathname();
+  const previousPathname = useRef(pathname);
 
   const [collapsed, setCollapsed] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -119,7 +120,14 @@ export default function Sidebar({
   });
   const [mounted, setMounted] = useState(false);
   const [storageReady, setStorageReady] = useState(false);
-  const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const [openMenu, setOpenMenu] = useState<string | null>(() =>
+    SIDEBAR_MENU.find((item) =>
+      item.subMenu?.some(
+        (sub) =>
+          pathname === sub.href || pathname.startsWith(`${sub.href}/`)
+      )
+    )?.key ?? null
+  );
   const [loggingOut, setLoggingOut] = useState(false);
   const sidebarStorageKey = userId
     ? `giefa-sidebar-collapsed:${userId}`
@@ -129,7 +137,7 @@ export default function Sidebar({
   const compact = collapsed && !mobileOpen;
 
   const isActive = (href?: string) =>
-    href ? pathname === href || pathname.startsWith(href) : false;
+    href ? pathname === href || pathname.startsWith(`${href}/`) : false;
 
   /* -----------------------------------
    Sidebar responsive state
@@ -182,6 +190,26 @@ export default function Sidebar({
     }
   }, [collapsed, mounted, sidebarStorageKey, storageReady]);
 
+  useEffect(() => {
+    if (previousPathname.current === pathname) return;
+
+    previousPathname.current = pathname;
+    const navigationTimer = window.setTimeout(() => {
+      setOpenMenu(null);
+      onMobileClose?.();
+
+      const activeElement = document.activeElement;
+      if (
+        activeElement instanceof HTMLElement &&
+        activeElement.closest("[data-sidebar-navigation]")
+      ) {
+        activeElement.blur();
+      }
+    }, 0);
+
+    return () => window.clearTimeout(navigationTimer);
+  }, [onMobileClose, pathname]);
+
   if (loading || !role) {
     return <SidebarLoadingShell position={position} mobileOpen={mobileOpen} />;
   }
@@ -222,6 +250,7 @@ export default function Sidebar({
         />
       )}
       <aside
+        data-sidebar-navigation
         className={clsx(
           "theme-sidebar fixed left-0 top-0 z-[80] flex h-screen w-[min(20rem,86vw)] shrink-0 flex-col overflow-visible transition-all duration-300 lg:sticky lg:top-0",
           mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
@@ -295,7 +324,7 @@ export default function Sidebar({
                 isActive(sub.href)
               );
 
-            const isOpen = !compact && (openMenu === item.key || itemActive);
+            const isOpen = !compact && openMenu === item.key;
             const isFlyoutOpen = compact && openMenu === item.key;
 
             return (
@@ -315,6 +344,15 @@ export default function Sidebar({
                 onFocus={() => {
                   if (compact && visibleSubItems.length > 0) {
                     setOpenMenu(item.key);
+                  }
+                }}
+                onBlur={(event) => {
+                  if (
+                    compact &&
+                    (!(event.relatedTarget instanceof Node) ||
+                      !event.currentTarget.contains(event.relatedTarget))
+                  ) {
+                    setOpenMenu(null);
                   }
                 }}
               >
@@ -408,9 +446,6 @@ export default function Sidebar({
                       position === "right"
                         ? "right-full origin-right pr-4 translate-x-2 -translate-y-1/2 scale-95"
                         : "left-full origin-left pl-4 -translate-x-2 -translate-y-1/2 scale-95",
-                      position === "right"
-                        ? "group-hover:pointer-events-auto group-hover:visible group-hover:translate-x-0 group-hover:scale-100 group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:visible group-focus-within:translate-x-0 group-focus-within:scale-100 group-focus-within:opacity-100"
-                        : "group-hover:pointer-events-auto group-hover:visible group-hover:translate-x-0 group-hover:scale-100 group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:visible group-focus-within:translate-x-0 group-focus-within:scale-100 group-focus-within:opacity-100",
                       isFlyoutOpen &&
                         "pointer-events-auto visible translate-x-0 scale-100 opacity-100"
                     )}

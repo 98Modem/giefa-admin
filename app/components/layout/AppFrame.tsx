@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode, useCallback, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import clsx from "clsx";
 import Sidebar from "@/app/components/sidebar/Sidebar";
@@ -48,6 +48,9 @@ export function AppFrame({
   });
   const currentRole = liveRole ?? initialRole;
   const currentUserId = liveUserId ?? initialUserId;
+  const closeMobileSidebar = useCallback(() => {
+    setMobileSidebarOpen(false);
+  }, []);
 
   useEffect(() => {
     const handlePreferenceUpdate = (event: Event) => {
@@ -105,7 +108,7 @@ export function AppFrame({
         loading={roleLoading && !currentRole}
         position={sidebarPosition}
         mobileOpen={mobileSidebarOpen}
-        onMobileClose={() => setMobileSidebarOpen(false)}
+        onMobileClose={closeMobileSidebar}
       />
 
       <div

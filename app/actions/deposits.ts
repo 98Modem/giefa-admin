@@ -231,11 +231,21 @@ export async function approveDepositSubmission(formData: FormData) {
 
   if (!submissionId) return;
 
-  const { data: submission } = await supabase
+  const { data: submission, error: submissionError } = await supabase
     .from("deposit_submissions")
-    .select("contribution_month")
+    .select("contribution_month, proof_url")
     .eq("id", submissionId)
-    .maybeSingle<{ contribution_month: string | null }>();
+    .maybeSingle<{
+      contribution_month: string | null;
+      proof_url: string | null;
+    }>();
+  assertOk(submissionError, "Load deposit submission");
+
+  if (!submission?.proof_url) {
+    throw new Error(
+      "A deposit proof is required before this submission can be approved."
+    );
+  }
 
   const { error } = await supabase.rpc("approve_deposit_submission_v1", {
     p_submission_id: submissionId,

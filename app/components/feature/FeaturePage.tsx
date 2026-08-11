@@ -21,6 +21,7 @@ type Section = {
 type Table = {
   columns: string[];
   rows: ReactNode[][];
+  rowActions?: ReactNode[];
   empty?: string;
 };
 
@@ -153,7 +154,7 @@ export function FeaturePage({
                 {table.rows.map((row, rowIndex) => (
                   <article
                     key={rowIndex}
-                    className="rounded-xl border border-[var(--app-border)] bg-white/70 p-4 shadow-sm dark:bg-white/5"
+                    className="group relative rounded-xl border border-[var(--app-border)] bg-white/70 p-4 shadow-sm transition-colors hover:bg-brand-50/60 focus-within:ring-2 focus-within:ring-brand-400 dark:bg-white/5 dark:hover:bg-white/10"
                   >
                     <div className="space-y-3">
                       {row.map((cell, cellIndex) => (
@@ -170,6 +171,7 @@ export function FeaturePage({
                         </div>
                       ))}
                     </div>
+                    {table.rowActions?.[rowIndex]}
                   </article>
                 ))}
               </div>
@@ -187,13 +189,17 @@ export function FeaturePage({
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-white/10">
                   {table.rows.map((row, rowIndex) => (
-                    <tr key={rowIndex}>
+                    <tr
+                      key={rowIndex}
+                      className="group relative transition-colors hover:bg-brand-50/60 focus-within:bg-brand-50/60 dark:hover:bg-white/5 dark:focus-within:bg-white/5"
+                    >
                       {row.map((cell, cellIndex) => (
                         <td
                           key={cellIndex}
                           className="px-5 py-4 text-gray-700 dark:text-gray-100"
                         >
                           {cell}
+                          {cellIndex === 0 && table.rowActions?.[rowIndex]}
                         </td>
                       ))}
                     </tr>
