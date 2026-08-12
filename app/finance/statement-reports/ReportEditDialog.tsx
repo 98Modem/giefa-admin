@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { applyFinanceReportEdit } from "@/app/actions/financeReports";
+import { showSystemToast } from "@/app/components/feedback/SystemToast";
 
 type ReportEditDialogProps = {
   requestId: string;
@@ -115,6 +116,11 @@ export function ReportEditDialog({
                 startTransition(async () => {
                   await applyFinanceReportEdit(formData);
                   setOpen(false);
+                  showSystemToast({
+                    title: "Finance report updated",
+                    message: "The approved changes were applied successfully.",
+                    tone: "success",
+                  });
                 });
               }}
               className="flex min-h-0 flex-1 flex-col overflow-hidden"

@@ -14,6 +14,7 @@ import {
   approveDepositSubmission,
   rejectDepositSubmission,
 } from "@/app/actions/deposits";
+import { showSystemToast } from "@/app/components/feedback/SystemToast";
 
 type ReviewSubmission = {
   id: string;
@@ -263,6 +264,11 @@ export function DepositProofReview({
       try {
         await approveDepositSubmission(formData);
         setOpen(false);
+        showSystemToast({
+          title: "Deposit approved",
+          message: `${submission.memberName}'s deposit was posted to the official ledger.`,
+          tone: "success",
+        });
       } catch (error) {
         setActionError(
           error instanceof Error ? error.message : "The proof could not be approved.",
@@ -291,6 +297,11 @@ export function DepositProofReview({
       try {
         await rejectDepositSubmission(formData);
         setOpen(false);
+        showSystemToast({
+          title: "Deposit returned to member",
+          message: "The rejection reason was saved and the member was notified.",
+          tone: "success",
+        });
       } catch (error) {
         setActionError(
           error instanceof Error ? error.message : "The proof could not be rejected.",

@@ -3,6 +3,7 @@ import {
   rejectEmergencyRequest,
 } from "@/app/actions/giefa";
 import { FeaturePage } from "@/app/components/feature/FeaturePage";
+import { ActionForm } from "@/app/components/feedback/ActionForm";
 import {
   dateLabel,
   getEmergencyRequests,
@@ -35,18 +36,26 @@ export default async function PendingFundRequestsPage() {
           money(request.amount),
           dateLabel(request.created_at),
           <div key={request.id} className="flex flex-wrap gap-2">
-            <form action={approveEmergencyRequest}>
+            <ActionForm
+              action={approveEmergencyRequest}
+              successTitle="Emergency request approved"
+              successMessage="The member's emergency fund request was approved and the ledger was updated."
+            >
               <input type="hidden" name="request_id" value={request.id} />
               <button className="rounded-md bg-success-600 px-3 py-1.5 text-xs font-medium text-white">
                 Approve
               </button>
-            </form>
-            <form action={rejectEmergencyRequest}>
+            </ActionForm>
+            <ActionForm
+              action={rejectEmergencyRequest}
+              successTitle="Emergency request rejected"
+              successMessage="The decision was saved and the request was removed from the pending queue."
+            >
               <input type="hidden" name="request_id" value={request.id} />
               <button className="rounded-md bg-error-600 px-3 py-1.5 text-xs font-medium text-white">
                 Reject
               </button>
-            </form>
+            </ActionForm>
           </div>,
         ]),
         empty: "There are no pending emergency fund requests.",

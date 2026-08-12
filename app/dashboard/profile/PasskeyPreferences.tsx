@@ -18,6 +18,7 @@ import {
   markPasskeyEnabledOnThisDevice,
 } from "@/app/lib/auth/passkeys";
 import { supabaseBrowser } from "@/app/lib/supabase/client";
+import { showSystemToast } from "@/app/components/feedback/SystemToast";
 
 type SupportState = "checking" | "available" | "unavailable";
 
@@ -98,6 +99,11 @@ export function PasskeyPreferences() {
         setStatus(
           "This device already had a GIEFA passkey and is now confirmed for biometric sign-in."
         );
+        showSystemToast({
+          title: "Biometric sign-in confirmed",
+          message: "This device is ready to use its saved GIEFA passkey.",
+          tone: "success",
+        });
         setBusy(false);
         return;
       }
@@ -113,6 +119,11 @@ export function PasskeyPreferences() {
     setStatus(
       "Biometric sign-in is enabled. You can now use this device from the sign-in page."
     );
+    showSystemToast({
+      title: "Biometric sign-in enabled",
+      message: "This device can now use Face ID, fingerprint, PIN, or its saved passkey.",
+      tone: "success",
+    });
     setBusy(false);
   };
 
@@ -142,6 +153,11 @@ export function PasskeyPreferences() {
     setStatus(
       "The selected passkey was removed. Confirm this device again before using biometric sign-in."
     );
+    showSystemToast({
+      title: "Passkey removed",
+      message: "The selected credential is no longer connected to your GIEFA account.",
+      tone: "success",
+    });
     setRemovingId(null);
   };
 

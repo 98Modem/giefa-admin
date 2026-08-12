@@ -1,4 +1,5 @@
 import { FeaturePage } from "@/app/components/feature/FeaturePage";
+import { ActionForm } from "@/app/components/feedback/ActionForm";
 import { approveFinanceReportEdit } from "@/app/actions/financeReports";
 import {
   dateLabel,
@@ -62,9 +63,12 @@ export default async function ChairmanFinanceReportsPage() {
             String(report.exception_count ?? 0),
             report.status ?? "draft",
             pendingRequest ? (
-              <form
+              <ActionForm
                 key={pendingRequest.id}
                 action={approveFinanceReportEdit}
+                successTitle="Report edit decision saved"
+                successMessage="Finance can now continue with the updated report workflow."
+                resetOnSuccess
                 className="grid min-w-72 gap-2"
               >
                 <input type="hidden" name="request_id" value={pendingRequest.id} />
@@ -96,7 +100,7 @@ export default async function ChairmanFinanceReportsPage() {
                     Reject
                   </button>
                 </div>
-              </form>
+              </ActionForm>
             ) : (
               <span className="text-sm text-gray-500 dark:text-gray-300">
                 No pending edit

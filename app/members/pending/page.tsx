@@ -1,5 +1,6 @@
 import { approveMember, denyMember } from "@/app/actions/giefa";
 import { FeaturePage } from "@/app/components/feature/FeaturePage";
+import { ActionForm } from "@/app/components/feedback/ActionForm";
 import { dateLabel, getMembers, memberName } from "@/app/lib/giefa/liveData";
 
 export default async function PendingMembersPage() {
@@ -23,18 +24,26 @@ export default async function PendingMembersPage() {
           member.email ?? "No email",
           dateLabel(member.created_at),
           <div key={member.id} className="flex flex-wrap gap-2">
-            <form action={approveMember}>
+            <ActionForm
+              action={approveMember}
+              successTitle="Member approved"
+              successMessage="The applicant now has approved GIEFA access."
+            >
               <input type="hidden" name="member_id" value={member.id} />
               <button className="rounded-md bg-success-600 px-3 py-1.5 text-xs font-medium text-white">
                 Approve
               </button>
-            </form>
-            <form action={denyMember}>
+            </ActionForm>
+            <ActionForm
+              action={denyMember}
+              successTitle="Application denied"
+              successMessage="The membership decision was saved successfully."
+            >
               <input type="hidden" name="member_id" value={member.id} />
               <button className="rounded-md bg-error-600 px-3 py-1.5 text-xs font-medium text-white">
                 Deny
               </button>
-            </form>
+            </ActionForm>
           </div>,
         ]),
         empty: "There are no pending member applications.",

@@ -18,6 +18,7 @@ import {
   themeModes,
   ThemeMode,
 } from "@/app/lib/preferences";
+import { showSystemToast } from "@/app/components/feedback/SystemToast";
 import { saveLocalPreferences } from "@/app/components/theme/ThemeProvider";
 
 type ProfilePreferencesProps = {
@@ -106,6 +107,13 @@ export function ProfilePreferences({
 
     setSaving(false);
     setStatus(error ? error.message : "Preferences saved.");
+    if (!error) {
+      showSystemToast({
+        title: "Preferences saved",
+        message: "Your theme and layout choices are now active.",
+        tone: "success",
+      });
+    }
   };
 
   const saveAvatarFile = async (file: File) => {
@@ -177,6 +185,11 @@ export function ProfilePreferences({
     setAvatarUrl(data.publicUrl);
     window.dispatchEvent(new CustomEvent("giefa-profile-updated"));
     setStatus("Avatar updated.");
+    showSystemToast({
+      title: "Profile photo updated",
+      message: "Your new avatar is now visible across GIEFA.",
+      tone: "success",
+    });
   };
 
   const saveAvatarPosition = async (nextX: number, nextY: number) => {
@@ -194,6 +207,13 @@ export function ProfilePreferences({
 
     setStatus(error ? error.message : "Avatar position saved.");
     window.dispatchEvent(new CustomEvent("giefa-profile-updated"));
+    if (!error) {
+      showSystemToast({
+        title: "Avatar position saved",
+        message: "Your profile photo framing was updated successfully.",
+        tone: "success",
+      });
+    }
   };
 
   const chooseImage = () => {

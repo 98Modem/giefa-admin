@@ -1,4 +1,5 @@
 import { FeaturePage } from "@/app/components/feature/FeaturePage";
+import { ActionForm } from "@/app/components/feedback/ActionForm";
 import {
   approveSuspension,
   rejectSuspension,
@@ -39,7 +40,11 @@ export default async function DeletionApprovalsPage() {
           dateLabel(member.created_at),
           "Pending review",
           <div key={member.id} className="flex flex-wrap gap-2">
-            <form action={approveSuspension}>
+            <ActionForm
+              action={approveSuspension}
+              successTitle="Suspension confirmed"
+              successMessage="The governance decision was saved and access remains suspended."
+            >
               <input type="hidden" name="member_id" value={member.id} />
               <button
                 type="submit"
@@ -47,8 +52,12 @@ export default async function DeletionApprovalsPage() {
               >
                 Approve suspension
               </button>
-            </form>
-            <form action={rejectSuspension}>
+            </ActionForm>
+            <ActionForm
+              action={rejectSuspension}
+              successTitle="Member access restored"
+              successMessage="The suspension was rejected and the member can access GIEFA again."
+            >
               <input type="hidden" name="member_id" value={member.id} />
               <button
                 type="submit"
@@ -56,7 +65,7 @@ export default async function DeletionApprovalsPage() {
               >
                 Reject and restore
               </button>
-            </form>
+            </ActionForm>
           </div>,
         ]),
         empty: "There are no suspended members awaiting review.",

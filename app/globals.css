@@ -1473,3 +1473,60 @@ span.flatpickr-weekday,
   opacity: 0.8;
   cursor: grabbing; /* Changes the cursor to indicate dragging */
 }
+
+@keyframes giefa-system-toast-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(calc(-100% - 1.5rem)) scale(0.97);
+  }
+  65% {
+    opacity: 1;
+    transform: translateY(0.2rem) scale(1);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes giefa-system-toast-leave {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(calc(-100% - 1rem)) scale(0.98);
+  }
+}
+
+@keyframes giefa-system-toast-progress {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
+.giefa-system-toast-enter {
+  animation: giefa-system-toast-enter 720ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.giefa-system-toast-leave {
+  animation: giefa-system-toast-leave 420ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+.giefa-system-toast-progress {
+  animation-name: giefa-system-toast-progress;
+  animation-timing-function: linear;
+  animation-fill-mode: both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .giefa-system-toast-enter,
+  .giefa-system-toast-leave,
+  .giefa-system-toast-progress {
+    animation-duration: 1ms !important;
+  }
+}

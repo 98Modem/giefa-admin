@@ -18,6 +18,7 @@ import {
 } from "@/app/actions/financeReports";
 import { ReportEditDialog } from "./ReportEditDialog";
 import { StatementReportForm } from "./StatementReportForm";
+import { ActionForm } from "@/app/components/feedback/ActionForm";
 
 function currentMonth() {
   return new Date().toISOString().slice(0, 7);
@@ -116,7 +117,13 @@ export default async function StatementReportsPage() {
         {canRequestEdit &&
           !hasOpenEditRequest &&
           !["edit_requested", "edit_approved"].includes(report.status ?? "") && (
-            <form action={requestFinanceReportEdit} className="grid gap-2">
+            <ActionForm
+              action={requestFinanceReportEdit}
+              successTitle="Report edit requested"
+              successMessage="The request was sent to leadership for approval."
+              resetOnSuccess
+              className="grid gap-2"
+            >
               <input type="hidden" name="report_id" value={report.id} />
               <input
                 name="reason"
@@ -126,13 +133,20 @@ export default async function StatementReportsPage() {
               <button className="rounded-lg border border-brand-200 px-3 py-2.5 text-sm font-semibold text-brand-700 hover:bg-brand-50 dark:border-brand-300/30 dark:text-brand-100 dark:hover:bg-brand-500/10">
                 Request edit
               </button>
-            </form>
+            </ActionForm>
           )}
         {editRequests
           .filter((request) => request.report_id === report.id && request.status === "requested")
           .map((request) =>
             canApproveEdit ? (
-              <form key={request.id} action={approveFinanceReportEdit} className="grid gap-2">
+              <ActionForm
+                key={request.id}
+                action={approveFinanceReportEdit}
+                successTitle="Report edit decision saved"
+                successMessage="The finance report workflow was updated successfully."
+                resetOnSuccess
+                className="grid gap-2"
+              >
                 <input type="hidden" name="request_id" value={request.id} />
                 <input
                   name="chairman_note"
@@ -155,7 +169,7 @@ export default async function StatementReportsPage() {
                     Reject
                   </button>
                 </div>
-              </form>
+              </ActionForm>
             ) : (
               <span key={request.id} className="text-sm font-semibold text-amber-600 dark:text-amber-200">
                 Edit awaiting chairman approval

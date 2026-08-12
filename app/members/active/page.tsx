@@ -1,5 +1,6 @@
 import { suspendMember } from "@/app/actions/giefa";
 import { FeaturePage } from "@/app/components/feature/FeaturePage";
+import { ActionForm } from "@/app/components/feedback/ActionForm";
 import { dateLabel, getMembers, memberName } from "@/app/lib/giefa/liveData";
 
 export default async function ActiveMembersPage() {
@@ -23,12 +24,17 @@ export default async function ActiveMembersPage() {
           member.email ?? "No email",
           member.role,
           dateLabel(member.created_at),
-          <form key={member.id} action={suspendMember}>
+          <ActionForm
+            key={member.id}
+            action={suspendMember}
+            successTitle="Member suspended"
+            successMessage="Access was suspended and the governance review queue was updated."
+          >
             <input type="hidden" name="member_id" value={member.id} />
             <button className="rounded-md border border-warning-300 px-3 py-1.5 text-xs font-medium text-warning-700 hover:bg-warning-50">
               Suspend
             </button>
-          </form>,
+          </ActionForm>,
         ]),
         empty: "No approved members are visible.",
       }}

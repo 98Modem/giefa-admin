@@ -8,6 +8,7 @@ import {
   useState,
   useTransition,
 } from "react";
+import { showSystemToast } from "@/app/components/feedback/SystemToast";
 
 type DepositProofFormProps = {
   action: (formData: FormData) => void | Promise<void>;
@@ -191,6 +192,7 @@ function sortMonthValues(values: string[]) {
 
 export function DepositProofForm({ action, memberName }: DepositProofFormProps) {
   const [isScanning, startScan] = useTransition();
+  const [isSubmitting, startSubmit] = useTransition();
   const [selectedProofs, setSelectedProofs] = useState<SelectedProof[]>([]);
   const [extraction, setExtraction] = useState<Extraction | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
@@ -201,7 +203,9 @@ export function DepositProofForm({ action, memberName }: DepositProofFormProps) 
     currentMonthValue(),
   ]);
   const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
 
+  const formRef = useRef<HTMLFormElement>(null);
   const proofRef = useRef<HTMLInputElement>(null);
   const monthPickerRef = useRef<HTMLDivElement>(null);
   const monthListRef = useRef<HTMLDivElement>(null);
@@ -456,9 +460,57 @@ export function DepositProofForm({ action, memberName }: DepositProofFormProps) 
     });
   }
 
+  function clearSubmittedProof() {
+    formRef.current?.reset();
+    if (proofRef.current) proofRef.current.value = "";
+
+    setSelectedProofs([]);
+    setExtraction(null);
+    setScanError(null);
+    setSubmissionError(null);
+    setIsDraggingProof(false);
+    setIsMonthPickerOpen(false);
+    setContributionMode("single");
+
+    const currentMonth = currentMonthValue();
+    setContributionMonth(currentMonth);
+    setContributionMonths([currentMonth]);
+  }
+
+  function submitProof(formData: FormData) {
+    if (isSubmitting || isScanning) return;
+
+    setSubmissionError(null);
+    startSubmit(async () => {
+      try {
+        await action(formData);
+        clearSubmittedProof();
+        showSystemToast({
+          title: "Deposit proof sent to finance",
+          message:
+            "Your proof and deposit details were submitted successfully. The form is now clear and ready for a new deposit.",
+          tone: "success",
+          duration: 6_400,
+        });
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Your deposit proof could not be sent. Please try again.";
+        setSubmissionError(message);
+        showSystemToast({
+          title: "Deposit proof was not sent",
+          message,
+          tone: "error",
+          duration: 7_000,
+        });
+      }
+    });
+  }
+
   return (
     <section className="mx-auto max-w-7xl overflow-hidden rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface)] shadow-sm">
-      <form action={action} className="space-y-4 p-4 sm:p-5">
+      <form ref={formRef} action={submitProof} className="space-y-4 p-4 sm:p-5">
         <input ref={confidenceRef} name="extraction_confidence" type="hidden" />
         <input ref={notesRef} name="extraction_notes" type="hidden" />
 
@@ -937,10 +989,19 @@ export function DepositProofForm({ action, memberName }: DepositProofFormProps) 
               </div>
               <button
                 type="submit"
-                className="mt-4 min-h-12 w-full rounded-lg bg-emerald-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                disabled={isSubmitting || isScanning}
+                className="mt-4 min-h-12 w-full rounded-lg bg-emerald-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 disabled:cursor-wait disabled:opacity-65"
               >
-                Confirm and Send to Finance
+                {isSubmitting ? "Sending securely..." : "Confirm and Send to Finance"}
               </button>
+              {submissionError && (
+                <p
+                  className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold leading-5 text-rose-700 dark:border-rose-300/25 dark:bg-rose-500/10 dark:text-rose-100"
+                  role="alert"
+                >
+                  {submissionError}
+                </p>
+              )}
             </div>
           </div>
         </div>

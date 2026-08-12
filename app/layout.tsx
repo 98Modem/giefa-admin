@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { ThemeProvider } from "@/app/components/theme/ThemeProvider";
+import { SystemToastProvider } from "@/app/components/feedback/SystemToast";
 
 export const metadata: Metadata = {
   title: "GIEFA",
@@ -44,7 +45,9 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeBootstrap }} />
       </head>
       <body>
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <SystemToastProvider>{children}</SystemToastProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

@@ -1,4 +1,5 @@
 import { assignMemberRole } from "@/app/actions/giefa";
+import { ActionForm } from "@/app/components/feedback/ActionForm";
 import {
   getCurrentMember,
   getMembers,
@@ -206,7 +207,12 @@ export default async function GovernanceChangeRolesPage() {
                     </p>
                   )}
 
-                  <form action={assignMemberRole} className="mt-4 grid gap-3">
+                  <ActionForm
+                    action={assignMemberRole}
+                    successTitle="Member role updated"
+                    successMessage="The new role and its access permissions are now active."
+                    className="mt-4 grid gap-3"
+                  >
                     <input type="hidden" name="member_id" value={member.id} />
                     <label className="grid gap-2 text-sm font-semibold text-gray-900 dark:text-white">
                       Assign role
@@ -231,7 +237,7 @@ export default async function GovernanceChangeRolesPage() {
                     <button className="rounded-xl bg-brand-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-brand-600">
                       Save Role
                     </button>
-                  </form>
+                  </ActionForm>
                 </article>
               );
             })}
@@ -275,9 +281,11 @@ export default async function GovernanceChangeRolesPage() {
                         )}
                       </td>
                       <td className="px-5 py-4">
-                        <form
+                        <ActionForm
                           id={`assign-role-${member.id}`}
                           action={assignMemberRole}
+                          successTitle="Member role updated"
+                          successMessage="The new role and its access permissions are now active."
                           className="flex min-w-56 flex-col gap-2"
                         >
                           <input type="hidden" name="member_id" value={member.id} />
@@ -298,7 +306,7 @@ export default async function GovernanceChangeRolesPage() {
                                 ?.detail
                             }
                           </p>
-                        </form>
+                        </ActionForm>
                       </td>
                       <td className="px-5 py-4">
                         <button
