@@ -26,6 +26,7 @@ import {
 } from "@/app/lib/preferences";
 import { saveLocalPreferences } from "@/app/components/theme/ThemeProvider";
 import { SIDEBAR_MENU } from "@/app/components/sidebar/sidebar.config";
+import { getNotificationTitle } from "@/app/lib/notifications/title";
 import { Role } from "@/app/employee_type/roles";
 import { GiefaAssistant } from "@/app/components/assistant/GiefaAssistant";
 
@@ -917,7 +918,7 @@ export function Header({ currentRole, onOpenMobileSidebar }: HeaderProps) {
                             <span className="h-2 w-2 shrink-0 rounded-full bg-brand-500" />
                           )}
                           <span className="truncate text-sm font-semibold text-gray-900 dark:text-white">
-                            {notification.title || "GIEFA update"}
+                            {getNotificationTitle(notification)}
                           </span>
                         </span>
                         <span className="line-clamp-2 text-xs leading-5 text-gray-600 dark:text-gray-300">
