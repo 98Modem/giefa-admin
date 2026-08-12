@@ -125,7 +125,6 @@ export default function Sidebar({
   const [storageReady, setStorageReady] = useState(false);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
-  const flyoutCloseTimer = useRef<number | null>(null);
   const sidebarStorageKey = userId
     ? `giefa-sidebar-collapsed:${userId}`
     : null;
@@ -135,26 +134,6 @@ export default function Sidebar({
 
   const isActive = (href?: string) =>
     href ? pathname === href || pathname.startsWith(`${href}/`) : false;
-
-  const cancelFlyoutClose = () => {
-    if (flyoutCloseTimer.current !== null) {
-      window.clearTimeout(flyoutCloseTimer.current);
-      flyoutCloseTimer.current = null;
-    }
-  };
-
-  const openFlyout = (menuKey: string) => {
-    cancelFlyoutClose();
-    setOpenMenu(menuKey);
-  };
-
-  const closeFlyoutAfterDelay = (menuKey: string) => {
-    cancelFlyoutClose();
-    flyoutCloseTimer.current = window.setTimeout(() => {
-      setOpenMenu((current) => (current === menuKey ? null : current));
-      flyoutCloseTimer.current = null;
-    }, 500);
-  };
 
   /* -----------------------------------
    Sidebar responsive state
@@ -227,14 +206,6 @@ export default function Sidebar({
     return () => window.clearTimeout(navigationTimer);
   }, [onMobileClose, pathname]);
 
-  useEffect(() => {
-    return () => {
-      if (flyoutCloseTimer.current !== null) {
-        window.clearTimeout(flyoutCloseTimer.current);
-      }
-    };
-  }, []);
-
   if (loading || !role) {
     return <SidebarLoadingShell position={position} mobileOpen={mobileOpen} />;
   }
@@ -242,6 +213,14 @@ export default function Sidebar({
   const closeMobileNavigation = () => {
     setOpenMenu(null);
     onMobileClose?.();
+
+    const activeElement = document.activeElement;
+    if (
+      activeElement instanceof HTMLElement &&
+      activeElement.closest("[data-sidebar-navigation]")
+    ) {
+      activeElement.blur();
+    }
   };
 
   /* -----------------------------------
@@ -387,19 +366,9 @@ export default function Sidebar({
               <div
                 key={item.key}
                 className="group relative z-[90]"
-                onMouseEnter={() => {
-                  if (compact && visibleSubItems.length > 0) {
-                    openFlyout(item.key);
-                  }
-                }}
-                onMouseLeave={() => {
-                  if (compact && openMenu === item.key) {
-                    closeFlyoutAfterDelay(item.key);
-                  }
-                }}
                 onFocus={() => {
                   if (compact && visibleSubItems.length > 0) {
-                    openFlyout(item.key);
+                    setOpenMenu(item.key);
                   }
                 }}
                 onBlur={(event) => {
@@ -408,7 +377,7 @@ export default function Sidebar({
                     (!(event.relatedTarget instanceof Node) ||
                       !event.currentTarget.contains(event.relatedTarget))
                   ) {
-                    closeFlyoutAfterDelay(item.key);
+                    setOpenMenu(null);
                   }
                 }}
               >
@@ -504,11 +473,11 @@ export default function Sidebar({
                       position === "right"
                         ? "right-full origin-right pr-4 translate-x-2 -translate-y-1/2 scale-95"
                         : "left-full origin-left pl-4 -translate-x-2 -translate-y-1/2 scale-95",
+                      "group-hover:pointer-events-auto group-hover:visible group-hover:translate-x-0 group-hover:scale-100 group-hover:opacity-100",
+                      "group-focus-within:pointer-events-auto group-focus-within:visible group-focus-within:translate-x-0 group-focus-within:scale-100 group-focus-within:opacity-100",
                       isFlyoutOpen &&
                         "pointer-events-auto visible translate-x-0 scale-100 opacity-100"
                     )}
-                    onMouseEnter={() => openFlyout(item.key)}
-                    onMouseLeave={() => closeFlyoutAfterDelay(item.key)}
                   >
                     <div
                       className={clsx(
