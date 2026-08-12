@@ -51,7 +51,7 @@ const authLandingRoutes = ["/login", "/signup"];
 const publicAssetPattern =
   /\.(?:avif|css|gif|ico|jpg|jpeg|js|json|map|pdf|png|svg|txt|webp|xml)$/i;
 
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const pathname = req.nextUrl.pathname;
 
   if (pathname.startsWith("/logo/") || publicAssetPattern.test(pathname)) {

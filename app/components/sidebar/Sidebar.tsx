@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import clsx from "clsx";
 
@@ -114,6 +114,7 @@ export default function Sidebar({
   onMobileClose,
 }: SidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const previousPathname = useRef(pathname);
 
   const [collapsed, setCollapsed] = useState(() => {
@@ -230,7 +231,8 @@ export default function Sidebar({
     try {
       setLoggingOut(true);
       await supabaseBrowser.auth.signOut({ scope: "global" });
-      window.location.href = "/login";
+      router.replace("/login");
+      router.refresh();
     } catch (err) {
       console.error("Logout failed:", err);
       setLoggingOut(false);
