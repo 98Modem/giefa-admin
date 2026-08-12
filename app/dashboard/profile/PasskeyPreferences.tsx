@@ -10,8 +10,12 @@ import {
 } from "@heroicons/react/24/outline";
 import type { PasskeyListItem } from "@supabase/supabase-js";
 import {
+  clearPasskeyDeviceMarker,
   getPasskeyErrorMessage,
   hasPlatformAuthenticator,
+  isExistingPasskeyError,
+  isPasskeyEnabledOnThisDevice,
+  markPasskeyEnabledOnThisDevice,
 } from "@/app/lib/auth/passkeys";
 import { supabaseBrowser } from "@/app/lib/supabase/client";
 
@@ -31,6 +35,7 @@ export function PasskeyPreferences() {
   const [passkeys, setPasskeys] = useState<PasskeyListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [deviceEnabled, setDeviceEnabled] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
@@ -60,6 +65,7 @@ export function PasskeyPreferences() {
       if (!active) return;
 
       setSupport(available ? "available" : "unavailable");
+      setDeviceEnabled(isPasskeyEnabledOnThisDevice());
       setLoading(false);
 
       if (result.error) {
@@ -86,11 +92,23 @@ export function PasskeyPreferences() {
       await supabaseBrowser.auth.registerPasskey();
 
     if (registrationError) {
+      if (isExistingPasskeyError(registrationError)) {
+        markPasskeyEnabledOnThisDevice();
+        setDeviceEnabled(true);
+        setStatus(
+          "This device already had a GIEFA passkey and is now confirmed for biometric sign-in."
+        );
+        setBusy(false);
+        return;
+      }
+
       setError(getPasskeyErrorMessage(registrationError));
       setBusy(false);
       return;
     }
 
+    markPasskeyEnabledOnThisDevice();
+    setDeviceEnabled(true);
     await loadPasskeys();
     setStatus(
       "Biometric sign-in is enabled. You can now use this device from the sign-in page."
@@ -119,14 +137,21 @@ export function PasskeyPreferences() {
     }
 
     setPasskeys((current) => current.filter((item) => item.id !== passkey.id));
-    setStatus("The selected passkey was removed.");
+    clearPasskeyDeviceMarker();
+    setDeviceEnabled(false);
+    setStatus(
+      "The selected passkey was removed. Confirm this device again before using biometric sign-in."
+    );
     setRemovingId(null);
   };
 
-  const enabled = passkeys.length > 0;
+  const accountHasPasskeys = passkeys.length > 0;
 
   return (
-    <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+    <section
+      id="biometric-sign-in"
+      className="scroll-mt-24 rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900"
+    >
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-3">
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
@@ -140,12 +165,18 @@ export function PasskeyPreferences() {
               {!loading && (
                 <span
                   className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                    enabled
+                    deviceEnabled
                       ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
-                      : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"
+                      : accountHasPasskeys
+                        ? "bg-amber-50 text-amber-800 dark:bg-amber-500/15 dark:text-amber-200"
+                        : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"
                   }`}
                 >
-                  {enabled ? "Enabled" : "Not enabled"}
+                  {deviceEnabled
+                    ? "This device ready"
+                    : accountHasPasskeys
+                      ? "Confirm this device"
+                      : "Not enabled"}
                 </span>
               )}
             </div>
@@ -164,9 +195,27 @@ export function PasskeyPreferences() {
           className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-brand-500 px-4 text-sm font-semibold text-white shadow-lg shadow-brand-500/15 transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-55"
         >
           <PlusIcon className="h-5 w-5" aria-hidden="true" />
-          {busy ? "Waiting for device..." : enabled ? "Add another device" : "Enable on this device"}
+          {busy
+            ? "Waiting for device..."
+            : deviceEnabled
+              ? "Add another passkey"
+              : accountHasPasskeys
+                ? "Confirm this device"
+                : "Enable on this device"}
         </button>
       </div>
+
+      {!loading && accountHasPasskeys && !deviceEnabled && (
+        <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
+          <p className="font-semibold">Finish setup on this device</p>
+          <p className="mt-1 text-xs leading-5 opacity-90">
+            Your account has a passkey, but this browser has not been confirmed.
+            Choose <span className="font-semibold">Confirm this device</span> so
+            GIEFA can offer biometric sign-in here without opening an empty
+            system passkey prompt.
+          </p>
+        </div>
+      )}
 
       <div className="mt-5 grid gap-3 md:grid-cols-2">
         <div className="flex gap-3 rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-white/5">

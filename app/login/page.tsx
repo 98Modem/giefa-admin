@@ -2,19 +2,44 @@
 
 /* eslint-disable @next/next/no-img-element */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FingerPrintIcon } from "@heroicons/react/24/outline";
+import {
+  ExclamationTriangleIcon,
+  FingerPrintIcon,
+  ShieldCheckIcon,
+} from "@heroicons/react/24/outline";
 import { GiefaWorkOverlay } from "@/app/components/loading/GiefaWorkOverlay";
 import {
+  clearPasskeyDeviceMarker,
   getPasskeyErrorMessage,
   hasPlatformAuthenticator,
+  isPasskeyEnabledOnThisDevice,
+  isPasskeyVerificationError,
+  markPasskeyEnabledOnThisDevice,
+  parsePasskeyRequestOptions,
+  serializePasskeyCredential,
 } from "@/app/lib/auth/passkeys";
 import { supabaseBrowser } from "@/app/lib/supabase/client";
 
+type PreparedPasskey = {
+  challengeId: string;
+  expiresAt: number;
+  publicKey: PublicKeyCredentialRequestOptions;
+};
+
+type PasskeyNotice = {
+  title: string;
+  message: string;
+  tone: "info" | "error";
+};
+
 export default function LoginPage() {
   const router = useRouter();
+  const emailInputRef = useRef<HTMLInputElement>(null);
+  const preparedPasskeyRef = useRef<PreparedPasskey | null>(null);
+  const preparePasskeyPromiseRef = useRef<Promise<boolean> | null>(null);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -22,19 +47,75 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState("Signing you in securely");
   const [passkeyAvailable, setPasskeyAvailable] = useState(false);
+  const [passkeyPreparing, setPasskeyPreparing] = useState(false);
+  const [passkeyNotice, setPasskeyNotice] = useState<PasskeyNotice | null>(null);
+  const [openPasskeySettingsAfterLogin, setOpenPasskeySettingsAfterLogin] =
+    useState(false);
   const [error, setError] = useState("");
+
+  const preparePasskey = useCallback(() => {
+    if (preparePasskeyPromiseRef.current) {
+      return preparePasskeyPromiseRef.current;
+    }
+
+    const request = (async () => {
+      setPasskeyPreparing(true);
+
+      try {
+        const { data, error: preparationError } =
+          await supabaseBrowser.auth.passkey.startAuthentication();
+
+        if (preparationError || !data) {
+          throw preparationError ?? new Error("No sign-in challenge was returned.");
+        }
+
+        const expiresAt =
+          data.expires_at < 1_000_000_000_000
+            ? data.expires_at * 1_000
+            : data.expires_at;
+
+        preparedPasskeyRef.current = {
+          challengeId: data.challenge_id,
+          expiresAt,
+          publicKey: parsePasskeyRequestOptions(data.options),
+        };
+        return true;
+      } catch (preparationError) {
+        preparedPasskeyRef.current = null;
+        setPasskeyNotice({
+          title: "Biometric sign-in is temporarily unavailable",
+          message: getPasskeyErrorMessage(preparationError),
+          tone: "error",
+        });
+        return false;
+      } finally {
+        setPasskeyPreparing(false);
+      }
+    })().finally(() => {
+      preparePasskeyPromiseRef.current = null;
+    });
+
+    preparePasskeyPromiseRef.current = request;
+    return request;
+  }, []);
 
   useEffect(() => {
     let active = true;
 
     void hasPlatformAuthenticator().then((available) => {
-      if (active) setPasskeyAvailable(available);
+      if (!active) return;
+
+      setPasskeyAvailable(available);
+
+      if (available && isPasskeyEnabledOnThisDevice()) {
+        void preparePasskey();
+      }
     });
 
     return () => {
       active = false;
     };
-  }, []);
+  }, [preparePasskey]);
 
   const routeSignedInUser = async () => {
     const {
@@ -59,7 +140,11 @@ export default function LoginPage() {
       .maybeSingle<{ status: string }>();
 
     if (member?.status === "approved") {
-      router.replace("/dashboard");
+      router.replace(
+        openPasskeySettingsAfterLogin
+          ? "/dashboard/profile#biometric-sign-in"
+          : "/dashboard"
+      );
       return;
     }
 
@@ -77,6 +162,7 @@ export default function LoginPage() {
     setLoading(true);
     setLoadingMessage("Signing you in securely");
     setError("");
+    setPasskeyNotice(null);
 
     const { error: signInError } =
       await supabaseBrowser.auth.signInWithPassword({
@@ -96,20 +182,107 @@ export default function LoginPage() {
   const handlePasskeyLogin = async () => {
     if (loading) return;
 
-    setLoading(true);
-    setLoadingMessage("Waiting for Face ID, fingerprint, or device passkey");
     setError("");
 
-    const { error: passkeyError } =
-      await supabaseBrowser.auth.signInWithPasskey();
-
-    if (passkeyError) {
-      setError(getPasskeyErrorMessage(passkeyError));
-      setLoading(false);
+    if (!isPasskeyEnabledOnThisDevice()) {
+      setOpenPasskeySettingsAfterLogin(true);
+      setPasskeyNotice({
+        title: "Set up biometric sign-in first",
+        message:
+          "Sign in with your password below. We will take you to Profile settings, where you can enable Face ID, fingerprint, or a passkey on this device.",
+        tone: "info",
+      });
+      window.setTimeout(() => emailInputRef.current?.focus(), 0);
       return;
     }
 
-    await routeSignedInUser();
+    const prepared = preparedPasskeyRef.current;
+
+    if (!prepared || prepared.expiresAt <= Date.now()) {
+      preparedPasskeyRef.current = null;
+      const ready = await preparePasskey();
+      setPasskeyNotice(
+        ready
+          ? {
+              title: "Biometric sign-in is ready",
+              message:
+                "For your security, tap the biometric sign-in button once more.",
+              tone: "info",
+            }
+          : null
+      );
+      return;
+    }
+
+    preparedPasskeyRef.current = null;
+    setPasskeyNotice(null);
+
+    let credentialRequest: Promise<Credential | null>;
+
+    try {
+      // Start WebAuthn directly inside the tap event. Some Android credential
+      // providers reject the first attempt when network work precedes this call.
+      credentialRequest = navigator.credentials.get({
+        publicKey: prepared.publicKey,
+      });
+    } catch (passkeyError) {
+      setPasskeyNotice({
+        title: "Biometric sign-in could not start",
+        message: getPasskeyErrorMessage(passkeyError),
+        tone: "error",
+      });
+      void preparePasskey();
+      return;
+    }
+
+    setLoading(true);
+    setLoadingMessage("Waiting for Face ID, fingerprint, or device passkey");
+
+    try {
+      const credential = await credentialRequest;
+
+      if (!(credential instanceof PublicKeyCredential)) {
+        throw new Error("No biometric credential was returned by this device.");
+      }
+
+      setLoadingMessage("Verifying your secure credential");
+
+      const { error: passkeyError } =
+        await supabaseBrowser.auth.passkey.verifyAuthentication({
+          challengeId: prepared.challengeId,
+          credential: serializePasskeyCredential(credential),
+        });
+
+      if (passkeyError) {
+        if (isPasskeyVerificationError(passkeyError)) {
+          clearPasskeyDeviceMarker();
+          setOpenPasskeySettingsAfterLogin(true);
+        }
+
+        setPasskeyNotice({
+          title: "Biometric sign-in was not completed",
+          message: getPasskeyErrorMessage(passkeyError),
+          tone: "error",
+        });
+        setLoading(false);
+
+        if (!isPasskeyVerificationError(passkeyError)) {
+          void preparePasskey();
+        }
+        return;
+      }
+
+      markPasskeyEnabledOnThisDevice();
+      await routeSignedInUser();
+    } catch (passkeyError) {
+      setPasskeyNotice({
+        title: "Biometric sign-in was not completed",
+        message: getPasskeyErrorMessage(passkeyError),
+        tone: "error",
+      });
+      setLoading(false);
+      void preparePasskey();
+    }
   };
 
   return (
@@ -145,12 +318,45 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={handlePasskeyLogin}
-                disabled={loading}
+                disabled={loading || passkeyPreparing}
                 className="flex h-12 w-full items-center justify-center gap-3 rounded-xl border border-brand-500/35 bg-brand-50 px-4 text-sm font-semibold text-brand-700 shadow-sm transition hover:border-brand-500 hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-brand-400/40 dark:bg-brand-500/10 dark:text-brand-200 dark:hover:bg-brand-500/20"
               >
                 <FingerPrintIcon className="h-6 w-6" aria-hidden="true" />
-                Use Face ID, fingerprint, or passkey
+                {passkeyPreparing
+                  ? "Preparing secure sign-in..."
+                  : "Use Face ID, fingerprint, or passkey"}
               </button>
+
+              {passkeyNotice && (
+                <div
+                  role={passkeyNotice.tone === "error" ? "alert" : "status"}
+                  className={`mt-3 flex gap-3 rounded-xl border px-4 py-3 text-left ${
+                    passkeyNotice.tone === "error"
+                      ? "border-red-200 bg-red-50 text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200"
+                      : "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100"
+                  }`}
+                >
+                  {passkeyNotice.tone === "error" ? (
+                    <ExclamationTriangleIcon
+                      className="mt-0.5 h-5 w-5 shrink-0"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <ShieldCheckIcon
+                      className="mt-0.5 h-5 w-5 shrink-0"
+                      aria-hidden="true"
+                    />
+                  )}
+                  <div>
+                    <p className="text-sm font-semibold">
+                      {passkeyNotice.title}
+                    </p>
+                    <p className="mt-1 text-xs leading-5 opacity-90">
+                      {passkeyNotice.message}
+                    </p>
+                  </div>
+                </div>
+              )}
 
               <div className="my-6 flex items-center gap-3" aria-hidden="true">
                 <span className="h-px flex-1 bg-[var(--app-border)]" />
@@ -174,6 +380,7 @@ export default function LoginPage() {
                 Email
               </label>
               <input
+                ref={emailInputRef}
                 type="email"
                 placeholder="info@gmail.com"
                 autoComplete="username webauthn"
