@@ -253,6 +253,9 @@ body {
   --app-sidebar-hover: rgba(255, 255, 255, 0.1);
   --app-sidebar-active: rgba(255, 255, 255, 0.16);
   --app-sidebar-glow: color-mix(in srgb, var(--color-brand-500) 22%, transparent);
+  --app-sidebar-scroll-track: color-mix(in srgb, var(--color-brand-950) 82%, rgba(255, 255, 255, 0.12));
+  --app-sidebar-scroll-thumb: color-mix(in srgb, var(--color-brand-400) 68%, white 32%);
+  --app-sidebar-scroll-thumb-hover: color-mix(in srgb, var(--color-brand-300) 74%, white 26%);
   --app-header: color-mix(in srgb, var(--color-brand-25) 70%, white);
   --app-border: color-mix(in srgb, var(--color-brand-200) 54%, white);
   --app-overlay: color-mix(in srgb, var(--color-brand-500) 12%, transparent);
@@ -270,6 +273,9 @@ body {
   --app-sidebar-hover: rgba(255, 255, 255, 0.09);
   --app-sidebar-active: color-mix(in srgb, var(--color-brand-500) 30%, rgba(255, 255, 255, 0.08));
   --app-sidebar-glow: color-mix(in srgb, var(--color-brand-500) 28%, transparent);
+  --app-sidebar-scroll-track: color-mix(in srgb, var(--color-brand-950) 64%, #020617);
+  --app-sidebar-scroll-thumb: color-mix(in srgb, var(--color-brand-500) 72%, #cbd5e1 28%);
+  --app-sidebar-scroll-thumb-hover: color-mix(in srgb, var(--color-brand-400) 78%, white 22%);
   --app-header: color-mix(in srgb, var(--color-brand-950) 18%, #111827);
   --app-border: color-mix(in srgb, var(--color-brand-500) 28%, rgba(255, 255, 255, 0.16));
   --app-overlay: color-mix(in srgb, var(--color-brand-500) 16%, transparent);
@@ -383,6 +389,54 @@ body {
   background:
     linear-gradient(to top, color-mix(in srgb, var(--color-brand-950) 88%, transparent), transparent),
     color-mix(in srgb, var(--color-brand-950) 24%, transparent);
+}
+
+.sidebar-scrollbar {
+  overscroll-behavior-y: contain;
+  scroll-behavior: smooth;
+  scrollbar-color: var(--app-sidebar-scroll-thumb) var(--app-sidebar-scroll-track);
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar {
+  width: 10px;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-track {
+  margin-block: 12px;
+  border-radius: 999px;
+  background: var(--app-sidebar-scroll-track);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.07),
+    inset 0 0 8px rgba(0, 0, 0, 0.22);
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-thumb {
+  min-height: 48px;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background:
+    linear-gradient(
+      180deg,
+      var(--app-sidebar-scroll-thumb-hover),
+      var(--app-sidebar-scroll-thumb)
+    ) padding-box;
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--color-brand-950) 55%, transparent);
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--app-sidebar-scroll-thumb-hover) padding-box;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 .theme-header {

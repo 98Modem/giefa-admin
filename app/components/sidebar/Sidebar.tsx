@@ -331,7 +331,7 @@ export default function Sidebar({
 
       <nav
         className={clsx(
-          "custom-scrollbar flex min-h-0 flex-1 flex-col gap-1.5 px-3 pb-4 pt-1",
+          "sidebar-scrollbar flex min-h-0 flex-1 flex-col gap-1.5 px-3 pb-4 pt-1",
           compact ? "overflow-visible" : "overflow-y-auto"
         )}
       >
