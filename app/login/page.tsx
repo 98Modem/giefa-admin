@@ -18,12 +18,15 @@ import {
   isMissingPasskeyError,
   markPasskeyEnabledOnThisDevice,
   parsePasskeyRequestOptions,
+  rememberPasskeyChallenge,
   serializePasskeyCredential,
   shouldAutomaticallyPromptForPasskey,
+  takePasskeyChallengeForCredential,
 } from "@/app/lib/auth/passkeys";
 import { supabaseBrowser } from "@/app/lib/supabase/client";
 
 type PreparedPasskey = {
+  challenge: string;
   challengeId: string;
   expiresAt: number;
   publicKey: PublicKeyCredentialRequestOptions;
@@ -76,11 +79,14 @@ export default function LoginPage() {
             ? data.expires_at * 1_000
             : data.expires_at;
 
-        preparedPasskeyRef.current = {
+        const preparedPasskey = {
+          challenge: data.options.challenge,
           challengeId: data.challenge_id,
           expiresAt,
           publicKey: parsePasskeyRequestOptions(data.options),
         };
+        preparedPasskeyRef.current = preparedPasskey;
+        rememberPasskeyChallenge(preparedPasskey);
         return true;
       } catch (preparationError) {
         preparedPasskeyRef.current = null;
@@ -252,12 +258,28 @@ export default function LoginPage() {
         throw new Error("No biometric credential was returned by this device.");
       }
 
+      const matchingChallenge = takePasskeyChallengeForCredential(
+        credential,
+        prepared
+      );
+
+      if (!matchingChallenge) {
+        setPasskeyNotice({
+          title: "Your browser returned an expired biometric request",
+          message:
+            "GIEFA refreshed the secure request. Tap the biometric button once more to continue.",
+          tone: "info",
+        });
+        void preparePasskey();
+        return;
+      }
+
       setLoading(true);
       setLoadingMessage("Verifying your secure credential");
 
       const { data: passkeyData, error: passkeyError } =
         await supabaseBrowser.auth.passkey.verifyAuthentication({
-          challengeId: prepared.challengeId,
+          challengeId: matchingChallenge.challengeId,
           credential: serializePasskeyCredential(credential),
         });
 

@@ -32,8 +32,17 @@ export type SerializedPasskeyCredential = {
   authenticatorAttachment?: AuthenticatorAttachment;
 };
 
+export type PreparedPasskeyChallenge = {
+  challenge: string;
+  challengeId: string;
+  expiresAt: number;
+};
+
 const PASSKEY_DEVICE_COOKIE = "giefa-passkey-device";
 const PASSKEY_DEVICE_MAX_AGE = 365 * 24 * 60 * 60;
+const PASSKEY_CHALLENGE_STORAGE = "giefa-passkey-challenges-v1";
+const PASSKEY_CHALLENGE_LIMIT = 12;
+const passkeyChallengeMemory = new Map<string, PreparedPasskeyChallenge>();
 
 function base64UrlToArrayBuffer(value: string) {
   const base64 = value.replace(/-/g, "+").replace(/_/g, "/");
@@ -59,6 +68,112 @@ function arrayBufferToBase64Url(value: ArrayBuffer) {
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
     .replace(/=+$/g, "");
+}
+
+function normalizePasskeyChallenge(value: string) {
+  return value
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+}
+
+function storedPasskeyChallenges() {
+  const challenges = new Map(passkeyChallengeMemory);
+
+  if (typeof window === "undefined") return challenges;
+
+  try {
+    const stored = JSON.parse(
+      window.localStorage.getItem(PASSKEY_CHALLENGE_STORAGE) ?? "[]"
+    ) as PreparedPasskeyChallenge[];
+
+    for (const challenge of stored) {
+      if (
+        challenge &&
+        typeof challenge.challenge === "string" &&
+        typeof challenge.challengeId === "string" &&
+        typeof challenge.expiresAt === "number"
+      ) {
+        challenges.set(normalizePasskeyChallenge(challenge.challenge), challenge);
+      }
+    }
+  } catch {
+    // Private browsing or restricted storage should not disable passkey login.
+  }
+
+  return challenges;
+}
+
+function savePasskeyChallenges(
+  challenges: Map<string, PreparedPasskeyChallenge>
+) {
+  const active = Array.from(challenges.values())
+    .filter((challenge) => challenge.expiresAt > Date.now())
+    .sort((left, right) => right.expiresAt - left.expiresAt)
+    .slice(0, PASSKEY_CHALLENGE_LIMIT);
+
+  passkeyChallengeMemory.clear();
+  for (const challenge of active) {
+    passkeyChallengeMemory.set(
+      normalizePasskeyChallenge(challenge.challenge),
+      challenge
+    );
+  }
+
+  if (typeof window === "undefined") return;
+
+  try {
+    window.localStorage.setItem(PASSKEY_CHALLENGE_STORAGE, JSON.stringify(active));
+  } catch {
+    // The in-memory registry still supports the current tab.
+  }
+}
+
+export function rememberPasskeyChallenge(
+  challenge: PreparedPasskeyChallenge
+) {
+  const challenges = storedPasskeyChallenges();
+  challenges.set(normalizePasskeyChallenge(challenge.challenge), {
+    challenge: challenge.challenge,
+    challengeId: challenge.challengeId,
+    expiresAt: challenge.expiresAt,
+  });
+  savePasskeyChallenges(challenges);
+}
+
+export function getSignedPasskeyChallenge(credential: PublicKeyCredential) {
+  try {
+    const response = credential.response as AuthenticatorAssertionResponse;
+    const clientData = JSON.parse(
+      new TextDecoder().decode(response.clientDataJSON)
+    ) as { challenge?: unknown };
+
+    return typeof clientData.challenge === "string"
+      ? normalizePasskeyChallenge(clientData.challenge)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+export function takePasskeyChallengeForCredential(
+  credential: PublicKeyCredential,
+  fallback: PreparedPasskeyChallenge
+) {
+  const signedChallenge = getSignedPasskeyChallenge(credential);
+  if (!signedChallenge) return null;
+
+  const fallbackChallenge = normalizePasskeyChallenge(fallback.challenge);
+  const challenges = storedPasskeyChallenges();
+  const matching =
+    challenges.get(signedChallenge) ??
+    (signedChallenge === fallbackChallenge ? fallback : null);
+
+  if (!matching || matching.expiresAt <= Date.now()) return null;
+
+  challenges.delete(signedChallenge);
+  savePasskeyChallenges(challenges);
+  return matching;
 }
 
 function passkeyCookieDomain() {

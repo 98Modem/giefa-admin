@@ -2,12 +2,15 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   getPasskeyErrorMessage,
+  getSignedPasskeyChallenge,
   isExistingPasskeyError,
   isMissingPasskeyError,
   isPasskeyVerificationError,
   parsePasskeyRequestOptions,
+  rememberPasskeyChallenge,
   serializePasskeyCredential,
   shouldAutomaticallyPromptForPasskey,
+  takePasskeyChallengeForCredential,
 } from "../app/lib/auth/passkeys";
 
 test("explains when passkeys still need deployment configuration", () => {
@@ -112,6 +115,59 @@ test("prepares Chrome on Android for one-tap sign-in without a blocked auto prom
   assert.equal(shouldAutomaticallyPromptForPasskey(chromeAndroid), false);
   assert.equal(shouldAutomaticallyPromptForPasskey(firefoxAndroid), true);
   assert.equal(shouldAutomaticallyPromptForPasskey(safariIPhone), true);
+});
+
+test("verifies an overlapping Chrome assertion with the challenge it actually signed", () => {
+  const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const storage = new Map<string, string>();
+  const olderChallenge = {
+    challenge: "b2xkZXItY2hhbGxlbmdl",
+    challengeId: "older-challenge-id",
+    expiresAt: Date.now() + 60_000,
+  };
+  const newerChallenge = {
+    challenge: "bmV3ZXItY2hhbGxlbmdl",
+    challengeId: "newer-challenge-id",
+    expiresAt: Date.now() + 60_000,
+  };
+
+  Object.defineProperty(globalThis, "window", {
+    configurable: true,
+    value: {
+      localStorage: {
+        getItem: (key: string) => storage.get(key) ?? null,
+        setItem: (key: string, value: string) => storage.set(key, value),
+      },
+    },
+  });
+
+  try {
+    rememberPasskeyChallenge(olderChallenge);
+    rememberPasskeyChallenge(newerChallenge);
+
+    const credential = {
+      response: {
+        clientDataJSON: new TextEncoder().encode(
+          JSON.stringify({ challenge: olderChallenge.challenge })
+        ).buffer,
+      },
+    } as unknown as PublicKeyCredential;
+
+    assert.equal(
+      getSignedPasskeyChallenge(credential),
+      olderChallenge.challenge
+    );
+    assert.deepEqual(
+      takePasskeyChallengeForCredential(credential, newerChallenge),
+      olderChallenge
+    );
+  } finally {
+    if (originalWindow) {
+      Object.defineProperty(globalThis, "window", originalWindow);
+    } else {
+      Reflect.deleteProperty(globalThis, "window");
+    }
+  }
 });
 
 test("turns a cancelled biometric prompt into a helpful message", () => {
