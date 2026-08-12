@@ -286,16 +286,16 @@ export function serializePasskeyCredential(
 export function shouldAutomaticallyPromptForPasskey(
   userAgent = typeof navigator === "undefined" ? "" : navigator.userAgent
 ) {
-  const isAndroid = /Android/i.test(userAgent);
-  const isChrome = /(?:Chrome|CriOS)\//i.test(userAgent);
-  const isAnotherChromiumBrowser =
-    /(?:EdgA|EdgiOS|OPR|SamsungBrowser)\//i.test(userAgent);
+  const isChromium =
+    /(?:Chrome|CriOS|Chromium|Edg|EdgA|EdgiOS|OPR|SamsungBrowser)\//i.test(
+      userAgent
+    );
 
   // Chrome's immediate passkey UI requires a user gesture. Starting a modal
   // request during page load can remain invisible and makes the user tap twice.
   // We still prefetch its challenge so the first explicit tap opens the native
   // credential provider without waiting for a network round trip.
-  return !(isAndroid && isChrome && !isAnotherChromiumBrowser);
+  return !isChromium;
 }
 
 export function isExistingPasskeyError(error: unknown) {

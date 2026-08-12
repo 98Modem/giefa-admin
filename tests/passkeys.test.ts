@@ -104,15 +104,21 @@ test("serializes Samsung assertions from signed buffers instead of native toJSON
   }
 });
 
-test("prepares Chrome on Android for one-tap sign-in without a blocked auto prompt", () => {
+test("reserves one-tap sign-in for Chromium without a blocked auto prompt", () => {
   const chromeAndroid =
     "Mozilla/5.0 (Linux; Android 16; SM-S921B) AppleWebKit/537.36 Chrome/140.0.0.0 Mobile Safari/537.36";
+  const chromeDesktop =
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36";
+  const samsungBrowser =
+    "Mozilla/5.0 (Linux; Android 16; SM-S921B) AppleWebKit/537.36 Chrome/140.0.0.0 Mobile Safari/537.36 SamsungBrowser/28.0";
   const firefoxAndroid =
     "Mozilla/5.0 (Android 16; Mobile; rv:142.0) Gecko/142.0 Firefox/142.0";
   const safariIPhone =
     "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 Version/18.6 Mobile Safari/604.1";
 
   assert.equal(shouldAutomaticallyPromptForPasskey(chromeAndroid), false);
+  assert.equal(shouldAutomaticallyPromptForPasskey(chromeDesktop), false);
+  assert.equal(shouldAutomaticallyPromptForPasskey(samsungBrowser), false);
   assert.equal(shouldAutomaticallyPromptForPasskey(firefoxAndroid), true);
   assert.equal(shouldAutomaticallyPromptForPasskey(safariIPhone), true);
 });

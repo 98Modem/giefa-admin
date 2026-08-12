@@ -59,6 +59,15 @@ export default function LoginPage() {
   const [error, setError] = useState("");
 
   const preparePasskey = useCallback(() => {
+    const prepared = preparedPasskeyRef.current;
+    if (prepared && prepared.expiresAt > Date.now() + 5_000) {
+      return Promise.resolve(true);
+    }
+
+    if (prepared) {
+      preparedPasskeyRef.current = null;
+    }
+
     if (preparePasskeyPromiseRef.current) {
       return preparePasskeyPromiseRef.current;
     }
@@ -110,18 +119,24 @@ export default function LoginPage() {
   useEffect(() => {
     let active = true;
 
-    void hasPlatformAuthenticator().then((available) => {
+    void hasPlatformAuthenticator().then(async (available) => {
       if (!active) return;
 
-      setPasskeyAvailable(available);
+      // Do not render an enabled Chrome button until its one-time challenge is
+      // ready. This removes the small first-tap race between React rendering
+      // the button and the background preparation request completing.
+      if (available && isPasskeyEnabledOnThisDevice()) {
+        await preparePasskey();
+      }
 
+      if (active) setPasskeyAvailable(available);
     });
 
     return () => {
       active = false;
       passkeyAbortControllerRef.current?.abort();
     };
-  }, []);
+  }, [preparePasskey]);
 
   const openSignedInWorkspace = useCallback(() => {
     setLoadingMessage("Opening your GIEFA workspace");
