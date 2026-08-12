@@ -4,7 +4,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   ExclamationTriangleIcon,
   FingerPrintIcon,
@@ -36,10 +35,10 @@ type PasskeyNotice = {
 };
 
 export default function LoginPage() {
-  const router = useRouter();
   const emailInputRef = useRef<HTMLInputElement>(null);
   const preparedPasskeyRef = useRef<PreparedPasskey | null>(null);
   const preparePasskeyPromiseRef = useRef<Promise<boolean> | null>(null);
+  const passkeyAbortControllerRef = useRef<AbortController | null>(null);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -48,6 +47,7 @@ export default function LoginPage() {
   const [loadingMessage, setLoadingMessage] = useState("Signing you in securely");
   const [passkeyAvailable, setPasskeyAvailable] = useState(false);
   const [passkeyPreparing, setPasskeyPreparing] = useState(false);
+  const [passkeyWaiting, setPasskeyWaiting] = useState(false);
   const [passkeyNotice, setPasskeyNotice] = useState<PasskeyNotice | null>(null);
   const [openPasskeySettingsAfterLogin, setOpenPasskeySettingsAfterLogin] =
     useState(false);
@@ -114,50 +114,27 @@ export default function LoginPage() {
 
     return () => {
       active = false;
+      passkeyAbortControllerRef.current?.abort();
     };
   }, [preparePasskey]);
 
-  const routeSignedInUser = async () => {
-    const {
-      data: { user },
-    } = await supabaseBrowser.auth.getUser();
+  const openSignedInWorkspace = () => {
+    setLoadingMessage("Opening your GIEFA workspace");
 
-    if (!user) {
-      setError("Your session could not be verified. Please try again.");
-      setLoading(false);
-      return;
-    }
-
-    if (!user?.email_confirmed_at) {
-      router.replace("/pending-approval");
-      return;
-    }
-
-    const { data: member } = await supabaseBrowser
-      .from("members")
-      .select("status")
-      .eq("auth_user_id", user.id)
-      .maybeSingle<{ status: string }>();
-
-    if (member?.status === "approved") {
-      router.replace(
-        openPasskeySettingsAfterLogin
-          ? "/dashboard/profile#biometric-sign-in"
-          : "/dashboard"
-      );
-      return;
-    }
-
-    if (member?.status === "suspended") {
-      router.replace("/account-suspended");
-      return;
-    }
-
-    router.replace("/pending-approval");
+    // Supabase has already persisted the verified session. A full navigation
+    // lets the server-side access guard route approved, pending, and suspended
+    // members without repeating two client-side network lookups on mobile.
+    window.location.replace(
+      openPasskeySettingsAfterLogin
+        ? "/dashboard/profile#biometric-sign-in"
+        : "/"
+    );
   };
 
+  const busy = loading || passkeyWaiting;
+
   const handleLogin = async () => {
-    if (loading) return;
+    if (busy) return;
 
     setLoading(true);
     setLoadingMessage("Signing you in securely");
@@ -176,11 +153,11 @@ export default function LoginPage() {
       return;
     }
 
-    await routeSignedInUser();
+    openSignedInWorkspace();
   };
 
   const handlePasskeyLogin = async () => {
-    if (loading) return;
+    if (busy) return;
 
     setError("");
 
@@ -217,6 +194,26 @@ export default function LoginPage() {
     preparedPasskeyRef.current = null;
     setPasskeyNotice(null);
 
+    const abortController = new AbortController();
+    passkeyAbortControllerRef.current = abortController;
+    const timeoutId = window.setTimeout(() => {
+      abortController.abort(
+        new DOMException("Biometric sign-in timed out.", "AbortError")
+      );
+    }, 45_000);
+    const cancelledRequest = new Promise<never>((_, reject) => {
+      abortController.signal.addEventListener(
+        "abort",
+        () => {
+          reject(
+            abortController.signal.reason ??
+              new DOMException("Biometric sign-in was cancelled.", "AbortError")
+          );
+        },
+        { once: true }
+      );
+    });
+
     let credentialRequest: Promise<Credential | null>;
 
     try {
@@ -224,8 +221,11 @@ export default function LoginPage() {
       // providers reject the first attempt when network work precedes this call.
       credentialRequest = navigator.credentials.get({
         publicKey: prepared.publicKey,
+        signal: abortController.signal,
       });
     } catch (passkeyError) {
+      window.clearTimeout(timeoutId);
+      passkeyAbortControllerRef.current = null;
       setPasskeyNotice({
         title: "Biometric sign-in could not start",
         message: getPasskeyErrorMessage(passkeyError),
@@ -235,25 +235,34 @@ export default function LoginPage() {
       return;
     }
 
-    setLoading(true);
-    setLoadingMessage("Waiting for Face ID, fingerprint, or device passkey");
+    setPasskeyWaiting(true);
 
     try {
-      const credential = await credentialRequest;
+      // Race against our own abort listener as well as passing the signal to
+      // Chrome. This releases the UI even if a device credential provider does
+      // not settle navigator.credentials.get() correctly.
+      const credential = await Promise.race([
+        credentialRequest,
+        cancelledRequest,
+      ]);
+      window.clearTimeout(timeoutId);
+      passkeyAbortControllerRef.current = null;
+      setPasskeyWaiting(false);
 
       if (!(credential instanceof PublicKeyCredential)) {
         throw new Error("No biometric credential was returned by this device.");
       }
 
+      setLoading(true);
       setLoadingMessage("Verifying your secure credential");
 
-      const { error: passkeyError } =
+      const { data: passkeyData, error: passkeyError } =
         await supabaseBrowser.auth.passkey.verifyAuthentication({
           challengeId: prepared.challengeId,
           credential: serializePasskeyCredential(credential),
         });
 
-      if (passkeyError) {
+      if (passkeyError || !passkeyData?.session || !passkeyData.user) {
         if (isPasskeyVerificationError(passkeyError)) {
           clearPasskeyDeviceMarker();
           setOpenPasskeySettingsAfterLogin(true);
@@ -261,7 +270,9 @@ export default function LoginPage() {
 
         setPasskeyNotice({
           title: "Biometric sign-in was not completed",
-          message: getPasskeyErrorMessage(passkeyError),
+          message: getPasskeyErrorMessage(
+            passkeyError ?? new Error("Your verified session was not returned.")
+          ),
           tone: "error",
         });
         setLoading(false);
@@ -273,8 +284,11 @@ export default function LoginPage() {
       }
 
       markPasskeyEnabledOnThisDevice();
-      await routeSignedInUser();
+      openSignedInWorkspace();
     } catch (passkeyError) {
+      window.clearTimeout(timeoutId);
+      passkeyAbortControllerRef.current = null;
+      setPasskeyWaiting(false);
       setPasskeyNotice({
         title: "Biometric sign-in was not completed",
         message: getPasskeyErrorMessage(passkeyError),
@@ -283,6 +297,12 @@ export default function LoginPage() {
       setLoading(false);
       void preparePasskey();
     }
+  };
+
+  const cancelPasskeyLogin = () => {
+    passkeyAbortControllerRef.current?.abort(
+      new DOMException("Biometric sign-in was cancelled.", "AbortError")
+    );
   };
 
   return (
@@ -318,14 +338,36 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={handlePasskeyLogin}
-                disabled={loading || passkeyPreparing}
+                disabled={busy || passkeyPreparing}
                 className="flex h-12 w-full items-center justify-center gap-3 rounded-xl border border-brand-500/35 bg-brand-50 px-4 text-sm font-semibold text-brand-700 shadow-sm transition hover:border-brand-500 hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-brand-400/40 dark:bg-brand-500/10 dark:text-brand-200 dark:hover:bg-brand-500/20"
               >
                 <FingerPrintIcon className="h-6 w-6" aria-hidden="true" />
-                {passkeyPreparing
+                {passkeyWaiting
+                  ? "Waiting for your device..."
+                  : passkeyPreparing
                   ? "Preparing secure sign-in..."
                   : "Use Face ID, fingerprint, or passkey"}
               </button>
+
+              {passkeyWaiting && (
+                <div
+                  role="status"
+                  className="mt-3 rounded-xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-900 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-100"
+                >
+                  <p className="font-semibold">Check your device prompt</p>
+                  <p className="mt-1 text-xs leading-5 opacity-90">
+                    Approve the request with your fingerprint, face, PIN, or
+                    saved passkey. If no prompt appeared, cancel and try again.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={cancelPasskeyLogin}
+                    className="mt-3 rounded-lg border border-current/25 px-3 py-2 text-xs font-semibold transition hover:bg-white/60 dark:hover:bg-white/10"
+                  >
+                    Cancel and use password
+                  </button>
+                </div>
+              )}
 
               {passkeyNotice && (
                 <div
@@ -388,7 +430,7 @@ export default function LoginPage() {
                 onChange={(event) => setEmail(event.target.value)}
                 className="h-11 w-full rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-strong)] px-4 text-sm text-gray-900 shadow-sm outline-none transition placeholder:text-gray-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15 dark:text-white"
                 required
-                disabled={loading}
+                disabled={busy}
               />
             </div>
 
@@ -405,14 +447,14 @@ export default function LoginPage() {
                   onChange={(event) => setPassword(event.target.value)}
                   className="h-11 w-full rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-strong)] px-4 pr-14 text-sm text-gray-900 shadow-sm outline-none transition placeholder:text-gray-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15 dark:text-white"
                   required
-                  disabled={loading}
+                  disabled={busy}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword((prev) => !prev)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-gray-500 transition hover:text-brand-600 dark:text-gray-300 dark:hover:text-brand-200"
                   aria-label="Toggle password visibility"
-                  disabled={loading}
+                  disabled={busy}
                 >
                   {showPassword ? "Hide" : "Show"}
                 </button>
@@ -423,7 +465,7 @@ export default function LoginPage() {
               <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
                 <input
                   type="checkbox"
-                  disabled={loading}
+                  disabled={busy}
                   className="h-4 w-4 rounded border-[var(--app-border)] text-brand-500 focus:ring-brand-500/20"
                 />
                 Keep me logged in
@@ -439,7 +481,7 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={busy}
               className="w-full rounded-xl bg-brand-500 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-500/20 transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-70"
             >
               {loading ? "Signing in..." : "Sign In"}

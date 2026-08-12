@@ -15,6 +15,7 @@ export type PasskeyRequestOptionsJSON = {
   }>;
   userVerification?: UserVerificationRequirement;
   extensions?: AuthenticationExtensionsClientInputs;
+  hints?: string[];
 };
 
 export type SerializedPasskeyCredential = {
@@ -117,23 +118,46 @@ export async function hasPlatformAuthenticator() {
 export function parsePasskeyRequestOptions(
   options: PasskeyRequestOptionsJSON
 ): PublicKeyCredentialRequestOptions {
-  return {
-    challenge: base64UrlToArrayBuffer(options.challenge),
-    timeout: options.timeout,
-    rpId: options.rpId,
-    userVerification: options.userVerification,
-    extensions: options.extensions,
-    allowCredentials: options.allowCredentials?.map((credential) => ({
+  const credentialConstructor = PublicKeyCredential as typeof PublicKeyCredential & {
+    parseRequestOptionsFromJSON?: (
+      value: PasskeyRequestOptionsJSON
+    ) => PublicKeyCredentialRequestOptions;
+  };
+
+  if (typeof credentialConstructor.parseRequestOptionsFromJSON === "function") {
+    return credentialConstructor.parseRequestOptionsFromJSON(options);
+  }
+
+  const { challenge, allowCredentials, ...remainingOptions } = options;
+  const parsed = {
+    ...remainingOptions,
+    challenge: base64UrlToArrayBuffer(challenge),
+  } as PublicKeyCredentialRequestOptions;
+
+  // An absent credential list is important for discoverable passkeys. Do not
+  // turn it into an empty list on older Android credential providers.
+  if (allowCredentials?.length) {
+    parsed.allowCredentials = allowCredentials.map((credential) => ({
       id: base64UrlToArrayBuffer(credential.id),
       type: credential.type ?? "public-key",
       transports: credential.transports as AuthenticatorTransport[] | undefined,
-    })),
-  };
+    }));
+  }
+
+  return parsed;
 }
 
 export function serializePasskeyCredential(
   credential: PublicKeyCredential
 ): SerializedPasskeyCredential {
+  const credentialWithJson = credential as PublicKeyCredential & {
+    toJSON?: () => SerializedPasskeyCredential;
+  };
+
+  if (typeof credentialWithJson.toJSON === "function") {
+    return credentialWithJson.toJSON();
+  }
+
   const response = credential.response as AuthenticatorAssertionResponse;
   const credentialWithAttachment = credential as PublicKeyCredential & {
     authenticatorAttachment?: AuthenticatorAttachment | null;
@@ -212,8 +236,15 @@ export function getPasskeyErrorMessage(error: unknown) {
   }
 
   if (
-    name === "notallowederror" ||
+    name === "aborterror" ||
     code.includes("ceremony_aborted") ||
+    message.includes("timed out")
+  ) {
+    return "Biometric sign-in was cancelled or took too long. You can try again or use your password.";
+  }
+
+  if (
+    name === "notallowederror" ||
     message.includes("not allowed") ||
     message.includes("cancel") ||
     message.includes("no passkeys available")

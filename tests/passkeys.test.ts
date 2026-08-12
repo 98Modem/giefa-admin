@@ -20,6 +20,16 @@ test("turns a cancelled biometric prompt into a helpful message", () => {
   );
 });
 
+test("turns an aborted or timed-out ceremony into an actionable message", () => {
+  assert.equal(
+    getPasskeyErrorMessage({
+      name: "AbortError",
+      message: "Biometric sign-in timed out.",
+    }),
+    "Biometric sign-in was cancelled or took too long. You can try again or use your password."
+  );
+});
+
 test("provides recovery guidance for an unlinked device credential", () => {
   assert.equal(
     getPasskeyErrorMessage({ code: "webauthn_credential_not_found" }),
