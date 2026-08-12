@@ -140,19 +140,16 @@ export function parsePasskeyRequestOptions(
 export function serializePasskeyCredential(
   credential: PublicKeyCredential
 ): SerializedPasskeyCredential {
-  const credentialWithJson = credential as PublicKeyCredential & {
-    toJSON?: () => SerializedPasskeyCredential;
-  };
-
-  if (typeof credentialWithJson.toJSON === "function") {
-    return credentialWithJson.toJSON();
-  }
-
   const response = credential.response as AuthenticatorAssertionResponse;
   const credentialWithAttachment = credential as PublicKeyCredential & {
     authenticatorAttachment?: AuthenticatorAttachment | null;
   };
 
+  // Encode the assertion ourselves on every browser. Samsung Chrome exposes
+  // PublicKeyCredential.toJSON(), but assertions serialized through that path
+  // have repeatedly failed Supabase's challenge comparison. The underlying
+  // WebAuthn ArrayBuffers are the signed source of truth and work consistently
+  // across Chrome, Firefox, and Safari when encoded directly as base64url.
   return {
     id: credential.id,
     rawId: arrayBufferToBase64Url(credential.rawId),
@@ -169,6 +166,21 @@ export function serializePasskeyCredential(
     authenticatorAttachment:
       credentialWithAttachment.authenticatorAttachment ?? undefined,
   };
+}
+
+export function shouldAutomaticallyPromptForPasskey(
+  userAgent = typeof navigator === "undefined" ? "" : navigator.userAgent
+) {
+  const isAndroid = /Android/i.test(userAgent);
+  const isChrome = /(?:Chrome|CriOS)\//i.test(userAgent);
+  const isAnotherChromiumBrowser =
+    /(?:EdgA|EdgiOS|OPR|SamsungBrowser)\//i.test(userAgent);
+
+  // Chrome's immediate passkey UI requires a user gesture. Starting a modal
+  // request during page load can remain invisible and makes the user tap twice.
+  // We still prefetch its challenge so the first explicit tap opens the native
+  // credential provider without waiting for a network round trip.
+  return !(isAndroid && isChrome && !isAnotherChromiumBrowser);
 }
 
 export function isExistingPasskeyError(error: unknown) {

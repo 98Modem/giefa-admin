@@ -6,6 +6,8 @@ import {
   isMissingPasskeyError,
   isPasskeyVerificationError,
   parsePasskeyRequestOptions,
+  serializePasskeyCredential,
+  shouldAutomaticallyPromptForPasskey,
 } from "../app/lib/auth/passkeys";
 
 test("explains when passkeys still need deployment configuration", () => {
@@ -46,6 +48,70 @@ test("decodes Samsung challenges without the native JSON transformer", () => {
       Reflect.deleteProperty(globalThis, "window");
     }
   }
+});
+
+test("serializes Samsung assertions from signed buffers instead of native toJSON", () => {
+  const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+  let nativeSerializerCalled = false;
+
+  Object.defineProperty(globalThis, "window", {
+    configurable: true,
+    value: { btoa: globalThis.btoa },
+  });
+
+  try {
+    const credential = {
+      id: "credential-id",
+      rawId: new Uint8Array([1, 2, 3]).buffer,
+      response: {
+        authenticatorData: new Uint8Array([4, 5]).buffer,
+        clientDataJSON: new Uint8Array([251, 255]).buffer,
+        signature: new Uint8Array([6, 7]).buffer,
+        userHandle: new Uint8Array([8]).buffer,
+      },
+      type: "public-key",
+      authenticatorAttachment: "platform",
+      getClientExtensionResults: () => ({}),
+      toJSON: () => {
+        nativeSerializerCalled = true;
+        throw new Error("Native serializer must not be used");
+      },
+    } as unknown as PublicKeyCredential;
+
+    assert.deepEqual(serializePasskeyCredential(credential), {
+      id: "credential-id",
+      rawId: "AQID",
+      response: {
+        authenticatorData: "BAU",
+        clientDataJSON: "-_8",
+        signature: "Bgc",
+        userHandle: "CA",
+      },
+      type: "public-key",
+      clientExtensionResults: {},
+      authenticatorAttachment: "platform",
+    });
+    assert.equal(nativeSerializerCalled, false);
+  } finally {
+    if (originalWindow) {
+      Object.defineProperty(globalThis, "window", originalWindow);
+    } else {
+      Reflect.deleteProperty(globalThis, "window");
+    }
+  }
+});
+
+test("prepares Chrome on Android for one-tap sign-in without a blocked auto prompt", () => {
+  const chromeAndroid =
+    "Mozilla/5.0 (Linux; Android 16; SM-S921B) AppleWebKit/537.36 Chrome/140.0.0.0 Mobile Safari/537.36";
+  const firefoxAndroid =
+    "Mozilla/5.0 (Android 16; Mobile; rv:142.0) Gecko/142.0 Firefox/142.0";
+  const safariIPhone =
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 Version/18.6 Mobile Safari/604.1";
+
+  assert.equal(shouldAutomaticallyPromptForPasskey(chromeAndroid), false);
+  assert.equal(shouldAutomaticallyPromptForPasskey(firefoxAndroid), true);
+  assert.equal(shouldAutomaticallyPromptForPasskey(safariIPhone), true);
 });
 
 test("turns a cancelled biometric prompt into a helpful message", () => {

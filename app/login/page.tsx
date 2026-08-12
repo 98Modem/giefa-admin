@@ -16,10 +16,10 @@ import {
   hasPlatformAuthenticator,
   isPasskeyEnabledOnThisDevice,
   isMissingPasskeyError,
-  isPasskeyVerificationError,
   markPasskeyEnabledOnThisDevice,
   parsePasskeyRequestOptions,
   serializePasskeyCredential,
+  shouldAutomaticallyPromptForPasskey,
 } from "@/app/lib/auth/passkeys";
 import { supabaseBrowser } from "@/app/lib/supabase/client";
 
@@ -276,9 +276,10 @@ export default function LoginPage() {
         });
         setLoading(false);
 
-        if (!isPasskeyVerificationError(passkeyError)) {
-          void preparePasskey();
-        }
+        // A verification request consumes its one-time challenge whether it
+        // succeeds or fails. Prepare the next challenge now so retrying needs
+        // one tap instead of a separate preparation tap.
+        void preparePasskey();
         return;
       }
 
@@ -315,9 +316,12 @@ export default function LoginPage() {
 
     autoPasskeyAttemptedRef.current = true;
 
+    const autoPrompt = shouldAutomaticallyPromptForPasskey();
+
     void preparePasskey().then((ready) => {
       if (
         !ready ||
+        !autoPrompt ||
         document.visibilityState !== "visible" ||
         window.location.pathname !== "/login"
       ) {
