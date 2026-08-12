@@ -15,6 +15,7 @@ import {
   getPasskeyErrorMessage,
   hasPlatformAuthenticator,
   isPasskeyEnabledOnThisDevice,
+  isMissingPasskeyError,
   isPasskeyVerificationError,
   markPasskeyEnabledOnThisDevice,
   parsePasskeyRequestOptions,
@@ -39,6 +40,7 @@ export default function LoginPage() {
   const preparedPasskeyRef = useRef<PreparedPasskey | null>(null);
   const preparePasskeyPromiseRef = useRef<Promise<boolean> | null>(null);
   const passkeyAbortControllerRef = useRef<AbortController | null>(null);
+  const autoPasskeyAttemptedRef = useRef(false);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -107,18 +109,15 @@ export default function LoginPage() {
 
       setPasskeyAvailable(available);
 
-      if (available && isPasskeyEnabledOnThisDevice()) {
-        void preparePasskey();
-      }
     });
 
     return () => {
       active = false;
       passkeyAbortControllerRef.current?.abort();
     };
-  }, [preparePasskey]);
+  }, []);
 
-  const openSignedInWorkspace = () => {
+  const openSignedInWorkspace = useCallback(() => {
     setLoadingMessage("Opening your GIEFA workspace");
 
     // Supabase has already persisted the verified session. A full navigation
@@ -129,7 +128,7 @@ export default function LoginPage() {
         ? "/dashboard/profile#biometric-sign-in"
         : "/"
     );
-  };
+  }, [openPasskeySettingsAfterLogin]);
 
   const busy = loading || passkeyWaiting;
 
@@ -156,7 +155,7 @@ export default function LoginPage() {
     openSignedInWorkspace();
   };
 
-  const handlePasskeyLogin = async () => {
+  const handlePasskeyLogin = useCallback(async () => {
     if (busy) return;
 
     setError("");
@@ -263,7 +262,7 @@ export default function LoginPage() {
         });
 
       if (passkeyError || !passkeyData?.session || !passkeyData.user) {
-        if (isPasskeyVerificationError(passkeyError)) {
+        if (isMissingPasskeyError(passkeyError)) {
           clearPasskeyDeviceMarker();
           setOpenPasskeySettingsAfterLogin(true);
         }
@@ -297,13 +296,39 @@ export default function LoginPage() {
       setLoading(false);
       void preparePasskey();
     }
-  };
+  }, [busy, openSignedInWorkspace, preparePasskey]);
 
   const cancelPasskeyLogin = () => {
     passkeyAbortControllerRef.current?.abort(
       new DOMException("Biometric sign-in was cancelled.", "AbortError")
     );
   };
+
+  useEffect(() => {
+    if (
+      !passkeyAvailable ||
+      !isPasskeyEnabledOnThisDevice() ||
+      autoPasskeyAttemptedRef.current
+    ) {
+      return;
+    }
+
+    autoPasskeyAttemptedRef.current = true;
+
+    void preparePasskey().then((ready) => {
+      if (
+        !ready ||
+        document.visibilityState !== "visible" ||
+        window.location.pathname !== "/login"
+      ) {
+        return;
+      }
+
+      window.setTimeout(() => {
+        void handlePasskeyLogin();
+      }, 250);
+    });
+  }, [handlePasskeyLogin, passkeyAvailable, preparePasskey]);
 
   return (
     <div className="relative flex min-h-screen bg-[image:var(--app-bg)] text-gray-900 dark:text-white">

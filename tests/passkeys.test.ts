@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import {
   getPasskeyErrorMessage,
   isExistingPasskeyError,
+  isMissingPasskeyError,
   isPasskeyVerificationError,
+  parsePasskeyRequestOptions,
 } from "../app/lib/auth/passkeys";
 
 test("explains when passkeys still need deployment configuration", () => {
@@ -11,6 +13,39 @@ test("explains when passkeys still need deployment configuration", () => {
     getPasskeyErrorMessage({ code: "passkey_disabled" }),
     "Biometric sign-in is not enabled for this GIEFA deployment yet."
   );
+});
+
+test("decodes Samsung challenges without the native JSON transformer", () => {
+  const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+
+  Object.defineProperty(globalThis, "window", {
+    configurable: true,
+    value: { atob: globalThis.atob },
+  });
+
+  try {
+    const parsed = parsePasskeyRequestOptions({
+      challenge: "AQID-_8",
+      rpId: "giefa.org",
+      allowCredentials: [],
+      hints: ["client-device"],
+    });
+
+    assert.deepEqual(Array.from(new Uint8Array(parsed.challenge as ArrayBuffer)), [
+      1, 2, 3, 251, 255,
+    ]);
+    assert.equal("allowCredentials" in parsed, false);
+    assert.deepEqual(
+      (parsed as PublicKeyCredentialRequestOptions & { hints?: string[] }).hints,
+      ["client-device"]
+    );
+  } finally {
+    if (originalWindow) {
+      Object.defineProperty(globalThis, "window", originalWindow);
+    } else {
+      Reflect.deleteProperty(globalThis, "window");
+    }
+  }
 });
 
 test("turns a cancelled biometric prompt into a helpful message", () => {
@@ -33,7 +68,22 @@ test("turns an aborted or timed-out ceremony into an actionable message", () => 
 test("provides recovery guidance for an unlinked device credential", () => {
   assert.equal(
     getPasskeyErrorMessage({ code: "webauthn_credential_not_found" }),
-    "This saved passkey could not be verified. Sign in with your password, then reconnect this device under Profile → Biometric & passkey sign-in."
+    "This passkey is no longer connected to your GIEFA account. Sign in with your password, then reconnect this device under Profile → Biometric & passkey sign-in."
+  );
+  assert.equal(
+    isMissingPasskeyError({ code: "webauthn_credential_not_found" }),
+    true
+  );
+});
+
+test("keeps a configured device connected after a retryable verification failure", () => {
+  assert.equal(
+    getPasskeyErrorMessage({ code: "webauthn_verification_failed" }),
+    "Your device responded, but GIEFA could not verify this sign-in request. Please try again or use your password."
+  );
+  assert.equal(
+    isMissingPasskeyError({ code: "webauthn_verification_failed" }),
+    false
   );
 });
 

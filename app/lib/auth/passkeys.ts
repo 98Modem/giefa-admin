@@ -118,16 +118,6 @@ export async function hasPlatformAuthenticator() {
 export function parsePasskeyRequestOptions(
   options: PasskeyRequestOptionsJSON
 ): PublicKeyCredentialRequestOptions {
-  const credentialConstructor = PublicKeyCredential as typeof PublicKeyCredential & {
-    parseRequestOptionsFromJSON?: (
-      value: PasskeyRequestOptionsJSON
-    ) => PublicKeyCredentialRequestOptions;
-  };
-
-  if (typeof credentialConstructor.parseRequestOptionsFromJSON === "function") {
-    return credentialConstructor.parseRequestOptionsFromJSON(options);
-  }
-
   const { challenge, allowCredentials, ...remainingOptions } = options;
   const parsed = {
     ...remainingOptions,
@@ -206,6 +196,13 @@ export function isPasskeyVerificationError(error: unknown) {
   );
 }
 
+export function isMissingPasskeyError(error: unknown) {
+  const passkeyError = (error ?? {}) as PasskeyError;
+  const code = passkeyError.code?.toLowerCase() ?? "";
+
+  return code === "webauthn_credential_not_found";
+}
+
 export function getPasskeyErrorMessage(error: unknown) {
   const passkeyError = (error ?? {}) as PasskeyError;
   const code = passkeyError.code?.toLowerCase() ?? "";
@@ -224,8 +221,12 @@ export function getPasskeyErrorMessage(error: unknown) {
     return "This device already has a GIEFA passkey.";
   }
 
+  if (isMissingPasskeyError(error)) {
+    return "This passkey is no longer connected to your GIEFA account. Sign in with your password, then reconnect this device under Profile → Biometric & passkey sign-in.";
+  }
+
   if (isPasskeyVerificationError(error)) {
-    return "This saved passkey could not be verified. Sign in with your password, then reconnect this device under Profile → Biometric & passkey sign-in.";
+    return "Your device responded, but GIEFA could not verify this sign-in request. Please try again or use your password.";
   }
 
   if (
