@@ -2,10 +2,15 @@
 
 /* eslint-disable @next/next/no-img-element */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { FingerPrintIcon } from "@heroicons/react/24/outline";
 import { GiefaWorkOverlay } from "@/app/components/loading/GiefaWorkOverlay";
+import {
+  getPasskeyErrorMessage,
+  hasPlatformAuthenticator,
+} from "@/app/lib/auth/passkeys";
 import { supabaseBrowser } from "@/app/lib/supabase/client";
 
 export default function LoginPage() {
@@ -15,28 +20,32 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState("Signing you in securely");
+  const [passkeyAvailable, setPasskeyAvailable] = useState(false);
   const [error, setError] = useState("");
 
-  const handleLogin = async () => {
-    if (loading) return;
+  useEffect(() => {
+    let active = true;
 
-    setLoading(true);
-    setError("");
-
-    const { error } = await supabaseBrowser.auth.signInWithPassword({
-      email,
-      password,
+    void hasPlatformAuthenticator().then((available) => {
+      if (active) setPasskeyAvailable(available);
     });
 
-    if (error) {
-      setError(error.message);
-      setLoading(false);
-      return;
-    }
+    return () => {
+      active = false;
+    };
+  }, []);
 
+  const routeSignedInUser = async () => {
     const {
       data: { user },
     } = await supabaseBrowser.auth.getUser();
+
+    if (!user) {
+      setError("Your session could not be verified. Please try again.");
+      setLoading(false);
+      return;
+    }
 
     if (!user?.email_confirmed_at) {
       router.replace("/pending-approval");
@@ -62,9 +71,50 @@ export default function LoginPage() {
     router.replace("/pending-approval");
   };
 
+  const handleLogin = async () => {
+    if (loading) return;
+
+    setLoading(true);
+    setLoadingMessage("Signing you in securely");
+    setError("");
+
+    const { error: signInError } =
+      await supabaseBrowser.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+    if (signInError) {
+      setError(signInError.message);
+      setLoading(false);
+      return;
+    }
+
+    await routeSignedInUser();
+  };
+
+  const handlePasskeyLogin = async () => {
+    if (loading) return;
+
+    setLoading(true);
+    setLoadingMessage("Waiting for Face ID, fingerprint, or device passkey");
+    setError("");
+
+    const { error: passkeyError } =
+      await supabaseBrowser.auth.signInWithPasskey();
+
+    if (passkeyError) {
+      setError(getPasskeyErrorMessage(passkeyError));
+      setLoading(false);
+      return;
+    }
+
+    await routeSignedInUser();
+  };
+
   return (
     <div className="relative flex min-h-screen bg-[image:var(--app-bg)] text-gray-900 dark:text-white">
-      {loading && <GiefaWorkOverlay message="Signing you in securely" />}
+      {loading && <GiefaWorkOverlay message={loadingMessage} />}
 
       <div className="flex w-full flex-col justify-center px-6 py-10 lg:w-1/2">
         <div className="mx-auto w-full max-w-md rounded-3xl border border-transparent bg-transparent p-0 sm:border-[var(--app-border)] sm:bg-[var(--app-surface)] sm:p-8 sm:shadow-2xl sm:shadow-brand-950/5 dark:sm:shadow-black/20 lg:border-transparent lg:bg-transparent lg:p-0 lg:shadow-none">
@@ -87,8 +137,30 @@ export default function LoginPage() {
             Sign In
           </h1>
           <p className="mb-6 text-sm text-gray-600 dark:text-gray-300">
-            Enter your email and password to sign in to GIEFA
+            Use your device passkey or enter your email and password.
           </p>
+
+          {passkeyAvailable && (
+            <>
+              <button
+                type="button"
+                onClick={handlePasskeyLogin}
+                disabled={loading}
+                className="flex h-12 w-full items-center justify-center gap-3 rounded-xl border border-brand-500/35 bg-brand-50 px-4 text-sm font-semibold text-brand-700 shadow-sm transition hover:border-brand-500 hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-brand-400/40 dark:bg-brand-500/10 dark:text-brand-200 dark:hover:bg-brand-500/20"
+              >
+                <FingerPrintIcon className="h-6 w-6" aria-hidden="true" />
+                Use Face ID, fingerprint, or passkey
+              </button>
+
+              <div className="my-6 flex items-center gap-3" aria-hidden="true">
+                <span className="h-px flex-1 bg-[var(--app-border)]" />
+                <span className="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                  or use password
+                </span>
+                <span className="h-px flex-1 bg-[var(--app-border)]" />
+              </div>
+            </>
+          )}
 
           <form
             className="space-y-5"
@@ -104,6 +176,7 @@ export default function LoginPage() {
               <input
                 type="email"
                 placeholder="info@gmail.com"
+                autoComplete="username webauthn"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 className="h-11 w-full rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-strong)] px-4 text-sm text-gray-900 shadow-sm outline-none transition placeholder:text-gray-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15 dark:text-white"
@@ -120,6 +193,7 @@ export default function LoginPage() {
                 <input
                   type={showPassword ? "text" : "password"}
                   placeholder="Enter your password"
+                  autoComplete="current-password"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   className="h-11 w-full rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-strong)] px-4 pr-14 text-sm text-gray-900 shadow-sm outline-none transition placeholder:text-gray-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15 dark:text-white"

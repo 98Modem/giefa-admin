@@ -9,6 +9,7 @@ import {
   ThemeMode,
 } from "@/app/lib/preferences";
 import { ProfilePreferences } from "./ProfilePreferences";
+import { PasskeyPreferences } from "./PasskeyPreferences";
 
 type ProfileMember = {
   first_name: string | null;
@@ -112,6 +113,8 @@ export default async function ProfilePage() {
         initialColorTheme={colorTheme}
         initialSidebarPosition={sidebarPosition}
       />
+
+      <PasskeyPreferences />
     </div>
   );
 }

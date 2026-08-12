@@ -37,6 +37,14 @@ Important production settings:
   - `https://www.giefa.org/reset-password`
   - `http://localhost:3000/auth/callback`
   - `http://localhost:3000/reset-password`
+- Enable Supabase Auth Passkeys with these WebAuthn settings:
+  - Relying Party Display Name: `GIEFA`
+  - Relying Party ID: `giefa.org`
+  - Relying Party Origins: `https://giefa.org,https://www.giefa.org`
+
+Passkeys are opt-in from Profile. A registered passkey lets supported phones and
+computers use Face ID, fingerprint recognition, a device PIN, or a password
+manager without exposing biometric data to GIEFA.
 
 Future releases:
 
