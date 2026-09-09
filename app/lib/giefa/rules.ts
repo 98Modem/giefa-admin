@@ -67,6 +67,15 @@ export function splitAmountAcrossMonths(total: number, count: number) {
   );
 }
 
+export function calculateApprovedSubmissionTotal(
+  submissions: ReadonlyArray<{ amount: number | null }>
+) {
+  return submissions.reduce((total, submission) => {
+    const amount = Number(submission.amount ?? 0);
+    return total + (Number.isFinite(amount) ? amount : 0);
+  }, 0);
+}
+
 function daysInMonth(reportingMonth: string) {
   const [year, month] = reportingMonth.split("-").map(Number);
   return new Date(year, month, 0).getDate();

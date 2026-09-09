@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/app/lib/supabase/server";
+import { calculateApprovedSubmissionTotal } from "@/app/lib/giefa/rules";
 
 type StatementTransaction = {
   transaction_date: string | null;
@@ -469,26 +470,23 @@ export async function createMonthlyFinanceReport(formData: FormData) {
     throw new Error("Create statement import failed: no import record was returned.");
   }
 
-  const { data: approvedSubmissions } = await supabase
+  const {
+    data: approvedSubmissions,
+    error: approvedSubmissionsError,
+  } = await supabase
     .from("deposit_submissions")
     .select("id, amount, deposit_date, bank_reference, sender_name, member_id")
     .eq("status", "approved")
     .eq("contribution_month", reportingMonth);
+  assertOk(approvedSubmissionsError, "Load approved deposit submissions");
 
   const parsedTransactions = applyMatches(
     parseStatementText(statementText),
     (approvedSubmissions ?? []) as ApprovedSubmission[]
   );
-  const approvedSubmissionTotal = (approvedSubmissions ?? []).reduce(
-    (total, submission) => total + Number(submission.amount ?? 0),
-    0
+  const approvedSubmissionTotal = calculateApprovedSubmissionTotal(
+    (approvedSubmissions ?? []) as ApprovedSubmission[]
   );
-  const sampleApprovedDepositTotal =
-    reportingMonth === "2026-02" && approvedSubmissionTotal === 0 ? 300000 : 0;
-  const confirmedMemberDepositTotal =
-    approvedSubmissionTotal > 0
-      ? approvedSubmissionTotal
-      : sampleApprovedDepositTotal;
 
   if (parsedTransactions.length > 0) {
     const { error: transactionError } = await supabase
@@ -508,8 +506,8 @@ export async function createMonthlyFinanceReport(formData: FormData) {
     (resolvedClosingBalance || resolvedOpeningBalance
       ? resolvedClosingBalance - resolvedOpeningBalance
       : parsedTransactions.reduce((total, row) => total + row.credit, 0));
-  const reportVariance = statementMovement - confirmedMemberDepositTotal;
-  const depositsExceedStatement = confirmedMemberDepositTotal > statementMovement;
+  const reportVariance = statementMovement - approvedSubmissionTotal;
+  const depositsExceedStatement = approvedSubmissionTotal > statementMovement;
   const varianceStatus = depositsExceedStatement
     ? "deposit_exceeds_statement"
     : reportVariance > 0
@@ -520,7 +518,7 @@ export async function createMonthlyFinanceReport(formData: FormData) {
       ? parsedTransactions
           .filter((row) => row.matched_submission_id)
           .reduce((total, row) => total + row.credit, 0)
-      : confirmedMemberDepositTotal;
+      : approvedSubmissionTotal;
   const unmatchedDeposits =
     parsedTransactions.length > 0
       ? Math.max(statementMovement - matchedDeposits, 0)
@@ -536,7 +534,7 @@ export async function createMonthlyFinanceReport(formData: FormData) {
             parsedTransactions.filter((row) => row.matched_submission_id).length,
           0
         )
-      : confirmedMemberDepositTotal > statementMovement
+      : approvedSubmissionTotal > statementMovement
         ? 1
         : 0;
   const calculatedInterest =
@@ -562,13 +560,10 @@ export async function createMonthlyFinanceReport(formData: FormData) {
           valuationSummary.periodic_return !== null
             ? `Statement return: ${valuationSummary.periodic_return}`
             : "",
-          `Member deposits: ${confirmedMemberDepositTotal}`,
+          `Member deposits: ${approvedSubmissionTotal}`,
           `True interest: ${calculatedInterest}`,
           depositsExceedStatement
             ? `Flag: approved deposits exceed the SBG statement return by ${Math.abs(reportVariance)}. Chairman/admin review required.`
-            : "",
-          confirmedMemberDepositTotal !== approvedSubmissionTotal
-            ? `Deposit total manually confirmed by finance. Approved submissions currently total ${approvedSubmissionTotal}.`
             : "",
           manualInterestAmount > 0
             ? `Manual monthly interest: ${manualInterestAmount}`
@@ -586,16 +581,20 @@ export async function createMonthlyFinanceReport(formData: FormData) {
     );
   assertOk(reportError, "Generate monthly finance report");
 
-  await supabase.rpc("recalculate_monthly_interest_allocations_v1", {
-    p_reporting_month: reportingMonth,
-    p_manual_interest_amount:
-      manualInterestAmount > 0 ? manualInterestAmount : calculatedInterest,
-  });
+  const { error: allocationError } = await supabase.rpc(
+    "recalculate_monthly_interest_allocations_v1",
+    {
+      p_reporting_month: reportingMonth,
+      p_manual_interest_amount:
+        manualInterestAmount > 0 ? manualInterestAmount : calculatedInterest,
+    }
+  );
+  assertOk(allocationError, "Recalculate monthly interest allocations");
 
   if (depositsExceedStatement) {
     await notifyRoles(supabase, ["chairman", "admin"], {
       title: "Finance variance needs review",
-      message: `For ${reportingMonth}, approved deposits (${confirmedMemberDepositTotal}) exceed the SBG statement return (${statementMovement}). The report was generated and needs leadership review.`,
+      message: `For ${reportingMonth}, approved deposits (${approvedSubmissionTotal}) exceed the SBG statement return (${statementMovement}). The report was generated and needs leadership review.`,
       type: "finance_report_variance",
       link_url: "/chairman/finance-reports",
     });

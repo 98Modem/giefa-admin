@@ -73,10 +73,6 @@ export default async function StatementReportsPage() {
     },
     {}
   );
-  const statementDepositTotals = {
-    "2026-02": 300000,
-    ...approvedDepositTotals,
-  };
   const pendingSubmissions = latestReport
     ? submissions.filter(
         (row) =>
@@ -200,7 +196,7 @@ export default async function StatementReportsPage() {
 
       <section className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
         <StatementReportForm
-          approvedDepositTotals={statementDepositTotals}
+          approvedDepositTotals={approvedDepositTotals}
           defaultMonth={currentMonth()}
         />
 

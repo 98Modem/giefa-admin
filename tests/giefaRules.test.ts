@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
+  calculateApprovedSubmissionTotal,
   calculateDailyWeightedInterest,
   canAssignMemberRole,
   evaluateEmergencyRequest,
@@ -49,6 +51,35 @@ test("third emergency request is blocked until a new refill cycle starts", () =>
 test("deposit splits distribute remainders predictably across selected months", () => {
   assert.deepEqual(splitAmountAcrossMonths(100_001, 3), [33_334, 33_334, 33_333]);
   assert.deepEqual(splitAmountAcrossMonths(200_000, 1), [200_000]);
+});
+
+test("approved deposit total remains zero when no approved submissions exist", () => {
+  assert.equal(calculateApprovedSubmissionTotal([]), 0);
+  assert.equal(calculateApprovedSubmissionTotal([{ amount: null }]), 0);
+});
+
+test("approved deposit total comes only from persisted submission amounts", () => {
+  assert.equal(
+    calculateApprovedSubmissionTotal([
+      { amount: 100_000 },
+      { amount: 200_000 },
+    ]),
+    300_000
+  );
+});
+
+test("finance report production paths contain no February demo deposit seed", () => {
+  const actionSource = readFileSync(
+    new URL("../app/actions/financeReports.ts", import.meta.url),
+    "utf8"
+  );
+  const pageSource = readFileSync(
+    new URL("../app/finance/statement-reports/page.tsx", import.meta.url),
+    "utf8"
+  );
+
+  assert.doesNotMatch(actionSource, /reportingMonth\s*===\s*["']2026-02["']/);
+  assert.doesNotMatch(pageSource, /["']2026-02["']\s*:\s*300_?000/);
 });
 
 test("daily weighted interest gives earlier money more weight than late-month money", () => {
