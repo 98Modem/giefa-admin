@@ -22,6 +22,7 @@ import { saveLocalPreferences } from "@/app/components/theme/ThemeProvider";
 
 type ProfilePreferencesProps = {
   initialAvatarUrl: string | null;
+  initialMemberName: string;
   initialAvatarPositionX: number;
   initialAvatarPositionY: number;
   initialThemeMode: ThemeMode;
@@ -29,14 +30,30 @@ type ProfilePreferencesProps = {
   initialSidebarPosition: SidebarPosition;
 };
 
+function getMemberInitials(memberName: string) {
+  const nameParts = memberName.trim().split(/\s+/).filter(Boolean);
+  const selectedParts =
+    nameParts.length > 1
+      ? [nameParts[0], nameParts[nameParts.length - 1]]
+      : nameParts;
+  const initials = selectedParts
+    .map((name) => Array.from(name)[0] ?? "")
+    .join("")
+    .toLocaleUpperCase();
+
+  return Array.from(initials).slice(0, 2).join("") || "GM";
+}
+
 export function ProfilePreferences({
   initialAvatarUrl,
+  initialMemberName,
   initialAvatarPositionX,
   initialAvatarPositionY,
   initialThemeMode,
   initialColorTheme,
   initialSidebarPosition,
 }: ProfilePreferencesProps) {
+  const avatarInitials = getMemberInitials(initialMemberName);
   const [avatarUrl, setAvatarUrl] = useState(initialAvatarUrl);
   const [avatarPositionX, setAvatarPositionX] = useState(initialAvatarPositionX);
   const [avatarPositionY, setAvatarPositionY] = useState(initialAvatarPositionY);
@@ -304,14 +321,31 @@ export function ProfilePreferences({
                 event.stopPropagation();
                 setAvatarMenuOpen((current) => !current);
               }}
-              className="group relative h-20 w-20 overflow-hidden rounded-full border border-gray-200 bg-gray-100 bg-cover bg-center ring-offset-2 transition hover:ring-2 hover:ring-brand-500 dark:border-gray-700 dark:ring-offset-gray-900"
-              style={{
-                backgroundImage: `url(${avatarUrl || "/user/owner.jpg"})`,
-                backgroundPosition: `${avatarPositionX}% ${avatarPositionY}%`,
-              }}
-              aria-label="Change profile photo"
+              className="group relative h-20 w-20 overflow-hidden rounded-full border border-gray-200 bg-gray-100 bg-cover bg-center ring-offset-2 transition hover:ring-2 hover:ring-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:ring-offset-gray-900"
+              style={
+                avatarUrl
+                  ? {
+                      backgroundImage: `url(${avatarUrl})`,
+                      backgroundPosition: `${avatarPositionX}% ${avatarPositionY}%`,
+                    }
+                  : undefined
+              }
+              aria-label={
+                avatarUrl
+                  ? `Change profile photo for ${initialMemberName}`
+                  : `Add profile photo for ${initialMemberName}; current avatar uses initials ${avatarInitials}`
+              }
               aria-expanded={avatarMenuOpen}
             >
+              {!avatarUrl ? (
+                <span
+                  role="img"
+                  aria-label={`${initialMemberName} profile avatar placeholder`}
+                  className="absolute inset-0 flex items-center justify-center bg-brand-50 text-xl font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-200"
+                >
+                  {avatarInitials}
+                </span>
+              ) : null}
               <span className="absolute inset-0 flex items-center justify-center bg-black/0 text-white transition group-hover:bg-black/45">
                 <CameraIcon
                   className="h-6 w-6 opacity-0 transition group-hover:opacity-100"

@@ -52,12 +52,14 @@ function escapeHtml(value: string) {
 }
 
 function buildBody(input: SendDepositConfirmationInput) {
-  const groupAccountNumber = env("SBG_GROUP_ACCOUNT_NUMBER") || "0000013863";
+  const groupAccountNumber =
+    env("SBG_GROUP_ACCOUNT_NUMBER") || "DEMO-ACCOUNT-NOT-CONFIGURED";
   const groupAccountName =
     env("SBG_GROUP_ACCOUNT_NAME") ||
-    "MUGEMA TOM, BAMWINE ANDREW JORDAN, AND AGABA HENRY - PROSPECTIVE SAVING GROUP";
+    "DEMO SAVINGS GROUP — NOT A REAL ACCOUNT";
   const moneyMarketAccount =
-    env("SBG_MONEY_MARKET_ACCOUNT_NUMBER") || "9030020680163";
+    env("SBG_MONEY_MARKET_ACCOUNT_NUMBER") ||
+    "DEMO-MONEY-MARKET-NOT-CONFIGURED";
   const reference =
     input.bankReference ||
     input.submissionIds[0] ||
@@ -152,7 +154,8 @@ export async function sendDepositConfirmationEmail(
 ): Promise<DepositConfirmationEmailResult> {
   const apiKey = env("RESEND_API_KEY");
   const to = env("SBG_DEPOSIT_CONFIRMATION_EMAIL");
-  const from = env("GIEFA_EMAIL_FROM") || "GIEFA Deposits <onboarding@resend.dev>";
+  const from =
+    env("GIEFA_EMAIL_FROM") || "GIEFA Deposits <deposits@example.invalid>";
   const replyTo = env("GIEFA_EMAIL_REPLY_TO") || input.memberEmail || undefined;
 
   if (!apiKey || !to) {
@@ -175,7 +178,7 @@ export async function sendDepositConfirmationEmail(
     return {
       status: "failed",
       message:
-        "SBG confirmation email failed: GIEFA_EMAIL_FROM must be a real sender address, for example GIEFA Deposits <deposits@giefa.org>.",
+        "SBG confirmation email failed: GIEFA_EMAIL_FROM must be a real sender address, for example GIEFA Deposits <deposits@example.invalid>.",
     };
   }
 

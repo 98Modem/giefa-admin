@@ -82,6 +82,37 @@ test("finance report production paths contain no February demo deposit seed", ()
   assert.doesNotMatch(pageSource, /["']2026-02["']\s*:\s*300_?000/);
 });
 
+test("public deposit-confirmation examples contain only fictional fallback identifiers", () => {
+  const emailSource = readFileSync(
+    new URL("../app/lib/email/depositConfirmation.ts", import.meta.url),
+    "utf8"
+  );
+  const productionExample = readFileSync(
+    new URL("../.env.production.example", import.meta.url),
+    "utf8"
+  );
+  const loginSource = readFileSync(
+    new URL("../app/login/page.tsx", import.meta.url),
+    "utf8"
+  );
+
+  assert.match(emailSource, /DEMO-ACCOUNT-NOT-CONFIGURED/);
+  assert.match(emailSource, /DEMO-MONEY-MARKET-NOT-CONFIGURED/);
+  assert.match(emailSource, /DEMO SAVINGS GROUP — NOT A REAL ACCOUNT/);
+  assert.match(emailSource, /deposits@example\.invalid/);
+  assert.doesNotMatch(
+    emailSource,
+    /env\("SBG_(?:GROUP|MONEY_MARKET)_ACCOUNT_NUMBER"\)\s*\|\|\s*"\d{8,}"/
+  );
+  assert.doesNotMatch(
+    productionExample,
+    /^SBG_(?:GROUP|MONEY_MARKET)_ACCOUNT_NUMBER=\d{8,}$/m
+  );
+  assert.match(productionExample, /deposits@example\.invalid/);
+  assert.match(productionExample, /support@example\.invalid/);
+  assert.match(loginSource, /placeholder="member@example\.invalid"/);
+});
+
 test("daily weighted interest gives earlier money more weight than late-month money", () => {
   const allocations = calculateDailyWeightedInterest({
     reportingMonth: "2026-07",

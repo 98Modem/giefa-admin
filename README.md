@@ -2,6 +2,8 @@
 
 Graduate Investment and Emergency Fund Association Dashboard.
 
+Bootstrapped with Create Next App. The dashboard UI foundation was adapted and modified from TailAdmin Next.js, used under the MIT License; see [Third-Party Notices](THIRD_PARTY_NOTICES.md).
+
 ## Getting Started
 
 First, run the development server:

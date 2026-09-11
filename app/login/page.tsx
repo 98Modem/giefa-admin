@@ -103,7 +103,7 @@ export default function LoginPage() {
               </label>
               <input
                 type="email"
-                placeholder="info@gmail.com"
+                placeholder="member@example.invalid"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 className="h-11 w-full rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-strong)] px-4 text-sm text-gray-900 shadow-sm outline-none transition placeholder:text-gray-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15 dark:text-white"

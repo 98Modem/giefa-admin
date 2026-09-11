@@ -41,6 +41,60 @@ type HeaderMember = {
   color_theme: ColorTheme | null;
 };
 
+type HeaderMemberAvatarProps = {
+  member: HeaderMember;
+  displayName: string;
+  avatarPosition: string;
+  className: string;
+};
+
+function getMemberInitials(
+  firstName: string | null | undefined,
+  lastName: string | null | undefined
+) {
+  const initials = [firstName, lastName]
+    .map((name) => name?.trim())
+    .filter((name): name is string => Boolean(name))
+    .map((name) => Array.from(name)[0] ?? "")
+    .join("")
+    .toLocaleUpperCase();
+
+  return Array.from(initials).slice(0, 2).join("") || "GM";
+}
+
+function HeaderMemberAvatar({
+  member,
+  displayName,
+  avatarPosition,
+  className,
+}: HeaderMemberAvatarProps) {
+  const baseClassName = `shrink-0 rounded-full border border-gray-200 dark:border-gray-700 ${className}`;
+
+  if (member.avatar_url) {
+    return (
+      <span
+        role="img"
+        aria-label={`${displayName} profile photo`}
+        className={`${baseClassName} bg-gray-100 bg-cover bg-center dark:bg-gray-800`}
+        style={{
+          backgroundImage: `url(${member.avatar_url})`,
+          backgroundPosition: avatarPosition,
+        }}
+      />
+    );
+  }
+
+  return (
+    <span
+      role="img"
+      aria-label={`${displayName} profile avatar placeholder`}
+      className={`${baseClassName} flex items-center justify-center bg-brand-50 font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-200`}
+    >
+      {getMemberInitials(member.first_name, member.last_name)}
+    </span>
+  );
+}
+
 type HeaderNotification = {
   id: string;
   title?: string | null;
@@ -675,7 +729,10 @@ export function Header({ currentRole, onOpenMobileSidebar }: HeaderProps) {
   };
 
   const displayName =
-    [member?.first_name, member?.last_name].filter(Boolean).join(" ") ||
+    [member?.first_name, member?.last_name]
+      .map((name) => name?.trim())
+      .filter((name): name is string => Boolean(name))
+      .join(" ") ||
     "GIEFA user";
   const memberRole = currentRole ?? (member?.role as Role | null | undefined);
   const role = memberRole?.replace("_", " ") ?? "member";
@@ -963,12 +1020,11 @@ export function Header({ currentRole, onOpenMobileSidebar }: HeaderProps) {
               aria-label="Open system menu"
             >
               {member ? (
-                <div
-                  className="h-7 w-7 rounded-full border border-gray-200 bg-cover bg-center bg-gray-100 dark:border-gray-700 dark:bg-gray-800 sm:h-8 sm:w-8"
-                  style={{
-                    backgroundImage: `url(${member.avatar_url || "/user/owner.jpg"})`,
-                    backgroundPosition: avatarPosition,
-                  }}
+                <HeaderMemberAvatar
+                  member={member}
+                  displayName={displayName}
+                  avatarPosition={avatarPosition}
+                  className="h-7 w-7 text-[10px] sm:h-8 sm:w-8"
                 />
               ) : (
                 <div className="h-7 w-7 animate-pulse rounded-full border border-gray-200 bg-gray-200 dark:border-gray-700 dark:bg-gray-800 sm:h-8 sm:w-8" />
@@ -993,12 +1049,11 @@ export function Header({ currentRole, onOpenMobileSidebar }: HeaderProps) {
               <div className="fixed left-3 right-3 top-[4.75rem] z-50 max-h-[calc(100vh-6rem)] origin-top-right overflow-y-auto rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface-strong)] p-3 shadow-2xl ring-1 ring-black/5 transition dark:ring-white/10 sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80">
                 <div className="flex items-center gap-3 border-b border-gray-100 pb-3 dark:border-gray-800">
                   {member ? (
-                    <div
-                      className="h-11 w-11 rounded-full border border-gray-200 bg-cover bg-center bg-gray-100 dark:border-gray-700"
-                      style={{
-                        backgroundImage: `url(${member.avatar_url || "/user/owner.jpg"})`,
-                        backgroundPosition: avatarPosition,
-                      }}
+                    <HeaderMemberAvatar
+                      member={member}
+                      displayName={displayName}
+                      avatarPosition={avatarPosition}
+                      className="h-11 w-11 text-sm"
                     />
                   ) : (
                     <div className="h-11 w-11 animate-pulse rounded-full border border-gray-200 bg-gray-200 dark:border-gray-700 dark:bg-gray-800" />

@@ -25,6 +25,20 @@ type ProfileMember = {
   sidebar_position: SidebarPosition | null;
 };
 
+function getMemberInitials(
+  firstName: string | null | undefined,
+  lastName: string | null | undefined
+) {
+  const initials = [firstName, lastName]
+    .map((name) => name?.trim())
+    .filter((name): name is string => Boolean(name))
+    .map((name) => Array.from(name)[0] ?? "")
+    .join("")
+    .toLocaleUpperCase();
+
+  return Array.from(initials).slice(0, 2).join("") || "GM";
+}
+
 export default async function ProfilePage() {
   const supabase = await supabaseServer();
 
@@ -52,8 +66,15 @@ export default async function ProfilePage() {
   const avatarPositionX = member.avatar_position_x ?? 50;
   const avatarPositionY = member.avatar_position_y ?? 50;
   const displayName =
-    [member.first_name, member.last_name].filter(Boolean).join(" ") ||
+    [member.first_name, member.last_name]
+      .map((name) => name?.trim())
+      .filter((name): name is string => Boolean(name))
+      .join(" ") ||
     "GIEFA member";
+  const avatarInitials = getMemberInitials(
+    member.first_name,
+    member.last_name
+  );
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 p-4 md:p-6">
@@ -64,13 +85,25 @@ export default async function ProfilePage() {
 
         <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-6">
-            <div
-              className="h-20 w-20 rounded-full border border-gray-200 bg-cover bg-center bg-gray-100 dark:border-gray-700"
-              style={{
-                backgroundImage: `url(${member.avatar_url || "/user/owner.jpg"})`,
-                backgroundPosition: `${avatarPositionX}% ${avatarPositionY}%`,
-              }}
-            />
+            {member.avatar_url ? (
+              <div
+                role="img"
+                aria-label={`${displayName} profile photo`}
+                className="h-20 w-20 shrink-0 rounded-full border border-gray-200 bg-gray-100 bg-cover bg-center dark:border-gray-700 dark:bg-gray-800"
+                style={{
+                  backgroundImage: `url(${member.avatar_url})`,
+                  backgroundPosition: `${avatarPositionX}% ${avatarPositionY}%`,
+                }}
+              />
+            ) : (
+              <div
+                role="img"
+                aria-label={`${displayName} profile avatar placeholder`}
+                className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-brand-50 text-xl font-semibold text-brand-700 dark:border-gray-700 dark:bg-brand-500/15 dark:text-brand-200"
+              >
+                {avatarInitials}
+              </div>
+            )}
 
             <div>
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -106,6 +139,7 @@ export default async function ProfilePage() {
 
       <ProfilePreferences
         initialAvatarUrl={member.avatar_url}
+        initialMemberName={displayName}
         initialAvatarPositionX={avatarPositionX}
         initialAvatarPositionY={avatarPositionY}
         initialThemeMode={themeMode}
