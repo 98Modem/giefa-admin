@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/app/lib/supabase/client";
 
 const INACTIVITY_TOTAL_MS = 15 * 60 * 1000;
@@ -50,6 +51,7 @@ function endSessionOnTabClose() {
 }
 
 export function useInactivityLogout() {
+  const router = useRouter();
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -75,8 +77,9 @@ export function useInactivityLogout() {
       scope: "global",
     });
 
-    window.location.assign("/login?reason=inactive");
-  }, [clearTimers]);
+    router.replace("/login?reason=inactive");
+    router.refresh();
+  }, [clearTimers, router]);
 
   const resetTimer = useCallback(() => {
     clearTimers();

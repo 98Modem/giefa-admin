@@ -180,10 +180,37 @@ export default async function DepositSubmissionsPage() {
         ],
         rows: submissions.map((submission) => {
           const proofUrl = proofUrls.get(submission.id);
+
+          return [
+            depositorLabel(submission, members),
+            submission.contribution_month ?? "No month",
+            money(submission.amount),
+            `${money(submission.emergency_amount)} / ${money(submission.investment_amount)}`,
+            submission.deposit_date ? dateLabel(submission.deposit_date) : "No date",
+            submission.bank_reference ?? "No reference",
+            submission.confidence !== null && submission.confidence !== undefined
+              ? `${Math.round(submission.confidence * 100)}%`
+              : "Manual",
+            proofUrl ? "Attached" : "No file",
+            <SbgEmailStatus
+              key={`${submission.id}-sbg-email`}
+              text={submission.extracted_text}
+            />,
+            <StatusPill key={`${submission.id}-status`} status={submission.status} />,
+            submission.status === "submitted" || submission.status === "needs_review"
+              ? proofUrl
+                ? "Review"
+                : "Review / reject"
+              : dateLabel(submission.reviewed_at),
+          ];
+        }),
+        rowActions: submissions.map((submission) => {
+          const proofUrl = proofUrls.get(submission.id) ?? null;
           const member = members[submission.member_id];
           const registeredName = memberName(member);
           const sbgEmail = getSbgEmailDetail(submission.extracted_text);
-          const reviewButton = proofUrl ? (
+
+          return (
             <DepositProofReview
               key={`${submission.id}-proof-review`}
               submission={{
@@ -215,32 +242,7 @@ export default async function DepositSubmissionsPage() {
                 sbgEmailDetail: sbgEmail.detail,
               }}
             />
-          ) : (
-            "No file"
           );
-
-          return [
-            depositorLabel(submission, members),
-            submission.contribution_month ?? "No month",
-            money(submission.amount),
-            `${money(submission.emergency_amount)} / ${money(submission.investment_amount)}`,
-            submission.deposit_date ? dateLabel(submission.deposit_date) : "No date",
-            submission.bank_reference ?? "No reference",
-            submission.confidence !== null && submission.confidence !== undefined
-              ? `${Math.round(submission.confidence * 100)}%`
-              : "Manual",
-            reviewButton,
-            <SbgEmailStatus
-              key={`${submission.id}-sbg-email`}
-              text={submission.extracted_text}
-            />,
-            <StatusPill key={`${submission.id}-status`} status={submission.status} />,
-            submission.status === "submitted" || submission.status === "needs_review"
-              ? proofUrl
-                ? "Open review"
-                : "Awaiting proof"
-              : dateLabel(submission.reviewed_at),
-          ];
         }),
         empty: "No deposit submissions have been received yet.",
       }}

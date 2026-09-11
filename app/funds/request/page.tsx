@@ -1,5 +1,6 @@
 import { createEmergencyRequest } from "@/app/actions/giefa";
 import { FeaturePage } from "@/app/components/feature/FeaturePage";
+import { ActionForm } from "@/app/components/feedback/ActionForm";
 import {
   dateLabel,
   getCurrentMember,
@@ -135,7 +136,13 @@ export default async function RequestFundsPage() {
           </div>
         ) : null}
 
-        <form action={createEmergencyRequest} className="mt-5 grid gap-4 sm:grid-cols-[1fr_auto]">
+        <ActionForm
+          action={createEmergencyRequest}
+          successTitle="Emergency request submitted"
+          successMessage="Your request was sent to the treasurer for review."
+          resetOnSuccess
+          className="mt-5 grid gap-4 sm:grid-cols-[1fr_auto]"
+        >
           <label className="block">
             <span className="text-sm font-medium text-gray-700 dark:text-white">
               Amount
@@ -163,7 +170,7 @@ export default async function RequestFundsPage() {
           >
             Submit Request
           </button>
-        </form>
+        </ActionForm>
       </section>
     </div>
   );

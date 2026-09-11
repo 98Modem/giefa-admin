@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode, useCallback, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import clsx from "clsx";
 import Sidebar from "@/app/components/sidebar/Sidebar";
@@ -48,6 +48,9 @@ export function AppFrame({
   });
   const currentRole = liveRole ?? initialRole;
   const currentUserId = liveUserId ?? initialUserId;
+  const closeMobileSidebar = useCallback(() => {
+    setMobileSidebarOpen(false);
+  }, []);
 
   useEffect(() => {
     const handlePreferenceUpdate = (event: Event) => {
@@ -95,7 +98,7 @@ export function AppFrame({
   return (
     <div
       className={clsx(
-        "app-shell flex min-h-screen w-full max-w-full overflow-x-hidden",
+        "app-shell flex h-dvh min-h-0 w-full max-w-full overflow-hidden",
         sidebarPosition === "right" && "lg:flex-row-reverse"
       )}
     >
@@ -105,12 +108,12 @@ export function AppFrame({
         loading={roleLoading && !currentRole}
         position={sidebarPosition}
         mobileOpen={mobileSidebarOpen}
-        onMobileClose={() => setMobileSidebarOpen(false)}
+        onMobileClose={closeMobileSidebar}
       />
 
       <div
         className={clsx(
-          "relative z-0 flex min-w-0 max-w-full flex-1 flex-col overflow-x-hidden transition-[padding] duration-300",
+          "relative z-0 flex h-dvh min-h-0 min-w-0 max-w-full flex-1 flex-col overflow-hidden transition-[padding] duration-300",
           isFloating && "lg:pl-24"
         )}
       >
@@ -118,7 +121,7 @@ export function AppFrame({
           currentRole={currentRole}
           onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
         />
-        <main className="app-main min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto px-3 py-4 sm:px-5 lg:px-8 lg:py-7">
+        <main className="app-main min-h-0 min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-3 py-4 sm:px-5 lg:px-8 lg:py-7">
           {children}
         </main>
       </div>

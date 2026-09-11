@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState, useTransition } from "react";
 import { createMonthlyFinanceReport } from "@/app/actions/financeReports";
+import { showSystemToast } from "@/app/components/feedback/SystemToast";
 
 type ExtractedSummary = {
   reporting_month: string | null;
@@ -152,6 +153,11 @@ export function StatementReportForm({
       action={(formData) => {
         startTransition(async () => {
           await createMonthlyFinanceReport(formData);
+          showSystemToast({
+            title: "Monthly finance report created",
+            message: "The statement figures and member allocations were saved successfully.",
+            tone: "success",
+          });
         });
       }}
       className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-white/15 dark:bg-white/10 sm:p-5"
