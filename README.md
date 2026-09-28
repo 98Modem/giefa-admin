@@ -28,6 +28,11 @@ Use Vercel for the Next.js app and API routes. DreamHost remains the domain regi
 
 Required Vercel environment variables are listed in `.env.production.example`.
 
+The production deployment runs a protected Supabase health check every day at
+12:17 UTC. Vercel calls `/api/cron/supabase-health`, which performs a read-only,
+single-row query against the `members` table. Set `CRON_SECRET` in the Vercel
+project so only authenticated cron requests can run the check.
+
 Important production settings:
 
 - Set `NEXT_PUBLIC_SITE_URL=https://giefa.org` in Vercel.

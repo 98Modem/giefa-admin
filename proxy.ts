@@ -54,6 +54,10 @@ const publicAssetPattern =
 export async function proxy(req: NextRequest) {
   const pathname = req.nextUrl.pathname;
 
+  if (pathname === "/api/cron/supabase-health") {
+    return NextResponse.next();
+  }
+
   if (pathname.startsWith("/logo/") || publicAssetPattern.test(pathname)) {
     return NextResponse.next();
   }
