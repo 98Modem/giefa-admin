@@ -54,7 +54,12 @@ const publicAssetPattern =
 export async function proxy(req: NextRequest) {
   const pathname = req.nextUrl.pathname;
 
-  if (pathname === "/api/cron/supabase-health") {
+  // Vercel authenticates cron requests with CRON_SECRET inside the route handler.
+  // Cron requests do not carry a member session and must not be redirected to login.
+  if (
+    pathname === "/api/cron/supabase-health" ||
+    pathname === "/api/cron/meeting-reminders"
+  ) {
     return NextResponse.next();
   }
 

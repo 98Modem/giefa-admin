@@ -6,6 +6,7 @@ import {
   ChartBarIcon,
   Cog6ToothIcon,
   ShieldCheckIcon,
+  CalendarDaysIcon,
 } from "@heroicons/react/24/outline";
 import { ComponentType, SVGProps } from "react";
 
@@ -58,6 +59,14 @@ export const SIDEBAR_MENU: SidebarItem[] = [
     title: "Dashboard",
     href: "/dashboard",
     icon: HomeIcon,
+    roles: ALL_ROLES,
+  },
+
+  {
+    key: "meetings",
+    title: "Meetings",
+    href: "/meetings",
+    icon: CalendarDaysIcon,
     roles: ALL_ROLES,
   },
 
