@@ -24,7 +24,7 @@ create table if not exists public.meetings (
   ends_at timestamptz not null,
   source_time_zone text not null default 'UTC',
   status text not null default 'scheduled',
-  reminder_minutes integer[] not null default array[1440, 60],
+  reminder_minutes integer[] not null default array[10080, 1440, 60],
   whatsapp_enabled boolean not null default true,
   created_by uuid not null references public.members(id),
   created_at timestamptz not null default now(),
@@ -247,7 +247,7 @@ begin
   where reminder = any(array[15, 60, 1440, 10080]);
 
   if coalesce(cardinality(normalized_reminders), 0) = 0 then
-    normalized_reminders := array[1440, 60];
+    normalized_reminders := array[10080, 1440, 60];
   end if;
 
   insert into public.meetings (

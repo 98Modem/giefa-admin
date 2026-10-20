@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { assignMemberRole } from "@/app/actions/giefa";
 import { ActionForm } from "@/app/components/feedback/ActionForm";
 import {
@@ -19,11 +20,6 @@ const leadershipRoles: Array<{ value: Role; label: string; detail: string }> = [
     detail: "Finance reviews, reports, deposits, and fund operations",
   },
   {
-    value: "general_sec",
-    label: "General Secretary",
-    detail: "Membership, suspensions, meetings, and administration",
-  },
-  {
     value: "member",
     label: "Member",
     detail: "Normal member access and personal fund activity",
@@ -39,11 +35,19 @@ export default async function GovernanceChangeRolesPage() {
     getMembers("approved"),
     getCurrentMember(),
   ]);
-  const activeMembers = members.filter((member) => member.status === "approved");
+  const activeMembers = members.filter(
+    (member) => member.status === "approved",
+  );
   const chairmen = activeMembers.filter((member) => member.role === "chairman");
-  const treasurers = activeMembers.filter((member) => member.role === "treasurer");
-  const secretaries = activeMembers.filter((member) => member.role === "general_sec");
-  const regularMembers = activeMembers.filter((member) => member.role === "member");
+  const treasurers = activeMembers.filter(
+    (member) => member.role === "treasurer",
+  );
+  const secretaries = activeMembers.filter(
+    (member) => member.role === "general_sec",
+  );
+  const regularMembers = activeMembers.filter(
+    (member) => member.role === "member",
+  );
   const canAssignRoles =
     currentMember?.status === "approved" &&
     ["chairman", "admin"].includes(currentMember.role);
@@ -60,8 +64,9 @@ export default async function GovernanceChangeRolesPage() {
             Change Member Roles
           </h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600 dark:text-gray-200">
-            Assign association roles to approved members and keep leadership
-            access clean, current, and accountable.
+            Assign ordinary association roles to approved members. General
+            Secretary authority uses a separate audited transfer so Isaac
+            remains the only active GS until an approved succession occurs.
           </p>
         </div>
       </div>
@@ -159,7 +164,16 @@ export default async function GovernanceChangeRolesPage() {
             Assign Roles To Approved Members
           </h2>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-300">
-            Assign chairman, treasurer, general secretary, or member access.
+            Assign chairman, treasurer, or member access. General Secretary
+            authority is protected by the atomic transfer workflow.
+            {canAssignRoles ? (
+              <Link
+                href="/governance/leadership"
+                className="ml-1 font-semibold text-brand-600 hover:underline dark:text-brand-300"
+              >
+                Open Leadership Transfer
+              </Link>
+            ) : null}
           </p>
         </div>
 
@@ -173,126 +187,65 @@ export default async function GovernanceChangeRolesPage() {
           </p>
         ) : (
           <>
-          <div className="grid gap-3 p-3 sm:hidden">
-            {activeMembers.map((member) => {
-              const isSelf = member.id === currentMember?.id;
-              const isOnlyChairman =
-                member.role === "chairman" &&
-                chairmen.length === 1 &&
-                !actorIsAdmin;
+            <div className="grid gap-3 p-3 sm:hidden">
+              {activeMembers.map((member) => {
+                const isSelf = member.id === currentMember?.id;
+                const isOnlyChairman =
+                  member.role === "chairman" &&
+                  chairmen.length === 1 &&
+                  !actorIsAdmin;
 
-              return (
-                <article
-                  key={member.id}
-                  className="rounded-xl border border-gray-200 bg-white/80 p-4 shadow-sm dark:border-white/15 dark:bg-white/5"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="break-words font-semibold text-gray-900 dark:text-white">
-                        {memberName(member)}
-                        {isSelf ? " (you)" : ""}
-                      </p>
-                      <p className="mt-1 break-words text-xs text-gray-500 dark:text-gray-300">
-                        {member.email ?? "No email"}
-                      </p>
-                    </div>
-                    <span className="rounded-full bg-brand-100 px-2.5 py-1 text-xs font-semibold capitalize text-brand-700 dark:bg-brand-500/15 dark:text-brand-100">
-                      {roleLabel(member.role)}
-                    </span>
-                  </div>
-
-                  {isOnlyChairman && (
-                    <p className="mt-3 rounded-lg bg-amber-50 p-3 text-xs font-semibold text-amber-700 dark:bg-amber-500/10 dark:text-amber-100">
-                      Assign another chairman before changing this role.
-                    </p>
-                  )}
-
-                  <ActionForm
-                    action={assignMemberRole}
-                    successTitle="Member role updated"
-                    successMessage="The new role and its access permissions are now active."
-                    className="mt-4 grid gap-3"
+                return (
+                  <article
+                    key={member.id}
+                    className="rounded-xl border border-gray-200 bg-white/80 p-4 shadow-sm dark:border-white/15 dark:bg-white/5"
                   >
-                    <input type="hidden" name="member_id" value={member.id} />
-                    <label className="grid gap-2 text-sm font-semibold text-gray-900 dark:text-white">
-                      Assign role
-                      <select
-                        name="role"
-                        defaultValue={member.role}
-                        className="h-12 rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-white/15 dark:bg-white/10 dark:text-white"
-                      >
-                        {leadershipRoles.map((role) => (
-                          <option key={role.value} value={role.value}>
-                            {role.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <p className="text-xs leading-5 text-gray-500 dark:text-gray-300">
-                      {
-                        leadershipRoles.find((role) => role.value === member.role)
-                          ?.detail
-                      }
-                    </p>
-                    <button className="rounded-xl bg-brand-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-brand-600">
-                      Save Role
-                    </button>
-                  </ActionForm>
-                </article>
-              );
-            })}
-          </div>
-
-          <div className="hidden overflow-x-auto sm:block">
-            <table className="min-w-full text-left text-sm">
-              <thead className="bg-gray-50 text-xs uppercase text-gray-500 dark:bg-white/5 dark:text-gray-200">
-                <tr>
-                  <th className="px-5 py-3 font-semibold">Member</th>
-                  <th className="px-5 py-3 font-semibold">Current Role</th>
-                  <th className="px-5 py-3 font-semibold">Assign Role</th>
-                  <th className="px-5 py-3 font-semibold">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200 dark:divide-white/10">
-                {activeMembers.map((member) => {
-                  const isSelf = member.id === currentMember?.id;
-                  const isOnlyChairman =
-                    member.role === "chairman" &&
-                    chairmen.length === 1 &&
-                    !actorIsAdmin;
-
-                  return (
-                    <tr key={member.id}>
-                      <td className="px-5 py-4">
-                        <p className="font-semibold text-gray-900 dark:text-white">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="break-words font-semibold text-gray-900 dark:text-white">
                           {memberName(member)}
                           {isSelf ? " (you)" : ""}
                         </p>
-                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-300">
+                        <p className="mt-1 break-words text-xs text-gray-500 dark:text-gray-300">
                           {member.email ?? "No email"}
                         </p>
-                      </td>
-                      <td className="px-5 py-4 capitalize text-gray-700 dark:text-gray-100">
+                      </div>
+                      <span className="rounded-full bg-brand-100 px-2.5 py-1 text-xs font-semibold capitalize text-brand-700 dark:bg-brand-500/15 dark:text-brand-100">
                         {roleLabel(member.role)}
-                        {isOnlyChairman && (
-                          <p className="mt-1 text-xs normal-case text-amber-600 dark:text-amber-200">
-                            Assign another chairman before changing this role.
-                          </p>
-                        )}
-                      </td>
-                      <td className="px-5 py-4">
-                        <ActionForm
-                          id={`assign-role-${member.id}`}
-                          action={assignMemberRole}
-                          successTitle="Member role updated"
-                          successMessage="The new role and its access permissions are now active."
-                          className="flex min-w-56 flex-col gap-2"
-                        >
-                          <input type="hidden" name="member_id" value={member.id} />
+                      </span>
+                    </div>
+
+                    {isOnlyChairman && (
+                      <p className="mt-3 rounded-lg bg-amber-50 p-3 text-xs font-semibold text-amber-700 dark:bg-amber-500/10 dark:text-amber-100">
+                        Assign another chairman before changing this role.
+                      </p>
+                    )}
+
+                    {member.role === "general_sec" ? (
+                      <Link
+                        href="/governance/leadership"
+                        className="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-brand-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-brand-600"
+                      >
+                        Transfer General Secretary
+                      </Link>
+                    ) : (
+                      <ActionForm
+                        action={assignMemberRole}
+                        successTitle="Member role updated"
+                        successMessage="The new role and its access permissions are now active."
+                        className="mt-4 grid gap-3"
+                      >
+                        <input
+                          type="hidden"
+                          name="member_id"
+                          value={member.id}
+                        />
+                        <label className="grid gap-2 text-sm font-semibold text-gray-900 dark:text-white">
+                          Assign role
                           <select
                             name="role"
                             defaultValue={member.role}
-                            className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-white/15 dark:bg-white/10 dark:text-white"
+                            className="h-12 rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-white/15 dark:bg-white/10 dark:text-white"
                           >
                             {leadershipRoles.map((role) => (
                               <option key={role.value} value={role.value}>
@@ -300,29 +253,124 @@ export default async function GovernanceChangeRolesPage() {
                               </option>
                             ))}
                           </select>
-                          <p className="text-xs text-gray-500 dark:text-gray-300">
-                            {
-                              leadershipRoles.find((role) => role.value === member.role)
-                                ?.detail
-                            }
-                          </p>
-                        </ActionForm>
-                      </td>
-                      <td className="px-5 py-4">
-                        <button
-                          type="submit"
-                          form={`assign-role-${member.id}`}
-                          className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-600"
-                        >
+                        </label>
+                        <p className="text-xs leading-5 text-gray-500 dark:text-gray-300">
+                          {
+                            leadershipRoles.find(
+                              (role) => role.value === member.role,
+                            )?.detail
+                          }
+                        </p>
+                        <button className="rounded-xl bg-brand-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-brand-600">
                           Save Role
                         </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                      </ActionForm>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
+
+            <div className="hidden overflow-x-auto sm:block">
+              <table className="min-w-full text-left text-sm">
+                <thead className="bg-gray-50 text-xs uppercase text-gray-500 dark:bg-white/5 dark:text-gray-200">
+                  <tr>
+                    <th className="px-5 py-3 font-semibold">Member</th>
+                    <th className="px-5 py-3 font-semibold">Current Role</th>
+                    <th className="px-5 py-3 font-semibold">Assign Role</th>
+                    <th className="px-5 py-3 font-semibold">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200 dark:divide-white/10">
+                  {activeMembers.map((member) => {
+                    const isSelf = member.id === currentMember?.id;
+                    const isOnlyChairman =
+                      member.role === "chairman" &&
+                      chairmen.length === 1 &&
+                      !actorIsAdmin;
+
+                    return (
+                      <tr key={member.id}>
+                        <td className="px-5 py-4">
+                          <p className="font-semibold text-gray-900 dark:text-white">
+                            {memberName(member)}
+                            {isSelf ? " (you)" : ""}
+                          </p>
+                          <p className="mt-1 text-xs text-gray-500 dark:text-gray-300">
+                            {member.email ?? "No email"}
+                          </p>
+                        </td>
+                        <td className="px-5 py-4 capitalize text-gray-700 dark:text-gray-100">
+                          {roleLabel(member.role)}
+                          {isOnlyChairman && (
+                            <p className="mt-1 text-xs normal-case text-amber-600 dark:text-amber-200">
+                              Assign another chairman before changing this role.
+                            </p>
+                          )}
+                        </td>
+                        <td className="px-5 py-4">
+                          {member.role === "general_sec" ? (
+                            <div className="min-w-56 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-sm text-brand-800 dark:border-brand-400/30 dark:bg-brand-500/10 dark:text-brand-200">
+                              Protected office — use Leadership Transfer.
+                            </div>
+                          ) : (
+                            <ActionForm
+                              id={`assign-role-${member.id}`}
+                              action={assignMemberRole}
+                              successTitle="Member role updated"
+                              successMessage="The new role and its access permissions are now active."
+                              className="flex min-w-56 flex-col gap-2"
+                            >
+                              <input
+                                type="hidden"
+                                name="member_id"
+                                value={member.id}
+                              />
+                              <select
+                                name="role"
+                                defaultValue={member.role}
+                                className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-white/15 dark:bg-white/10 dark:text-white"
+                              >
+                                {leadershipRoles.map((role) => (
+                                  <option key={role.value} value={role.value}>
+                                    {role.label}
+                                  </option>
+                                ))}
+                              </select>
+                              <p className="text-xs text-gray-500 dark:text-gray-300">
+                                {
+                                  leadershipRoles.find(
+                                    (role) => role.value === member.role,
+                                  )?.detail
+                                }
+                              </p>
+                            </ActionForm>
+                          )}
+                        </td>
+                        <td className="px-5 py-4">
+                          {member.role === "general_sec" ? (
+                            <Link
+                              href="/governance/leadership"
+                              className="inline-flex rounded-lg bg-brand-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-600"
+                            >
+                              Transfer GS
+                            </Link>
+                          ) : (
+                            <button
+                              type="submit"
+                              form={`assign-role-${member.id}`}
+                              className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-600"
+                            >
+                              Save Role
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </>
         )}
       </section>

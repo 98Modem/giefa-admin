@@ -26,7 +26,7 @@ function validTimeZone(value: string) {
 
 export async function scheduleMeetingAction(
   _previousState: MeetingActionState,
-  formData: FormData
+  formData: FormData,
 ): Promise<MeetingActionState> {
   const title = textValue(formData, "title");
   const startsAtValue = textValue(formData, "starts_at_utc");
@@ -40,23 +40,40 @@ export async function scheduleMeetingAction(
   const meetingUrl = textValue(formData, "meeting_url");
 
   if (title.length < 3 || title.length > 160) {
-    return { ok: false, message: "Enter a meeting title between 3 and 160 characters." };
+    return {
+      ok: false,
+      message: "Enter a meeting title between 3 and 160 characters.",
+    };
   }
   if (!Number.isFinite(startsAt.getTime()) || startsAt <= new Date()) {
     return { ok: false, message: "Choose a future meeting date and time." };
   }
-  if (!Number.isInteger(durationMinutes) || durationMinutes < 15 || durationMinutes > 720) {
-    return { ok: false, message: "Choose a duration between 15 minutes and 12 hours." };
+  if (
+    !Number.isInteger(durationMinutes) ||
+    durationMinutes < 15 ||
+    durationMinutes > 720
+  ) {
+    return {
+      ok: false,
+      message: "Choose a duration between 15 minutes and 12 hours.",
+    };
   }
   if (!validTimeZone(sourceTimeZone)) {
-    return { ok: false, message: "The detected time zone is not valid. Refresh and try again." };
+    return {
+      ok: false,
+      message: "The detected time zone is not valid. Refresh and try again.",
+    };
   }
   if (meetingUrl) {
     try {
       const parsed = new URL(meetingUrl);
-      if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error("invalid protocol");
+      if (!["http:", "https:"].includes(parsed.protocol))
+        throw new Error("invalid protocol");
     } catch {
-      return { ok: false, message: "Meeting link must be a complete http or https URL." };
+      return {
+        ok: false,
+        message: "Meeting link must be a complete http or https URL.",
+      };
     }
   }
 
@@ -70,7 +87,9 @@ export async function scheduleMeetingAction(
     p_starts_at: startsAt.toISOString(),
     p_duration_minutes: durationMinutes,
     p_source_time_zone: sourceTimeZone,
-    p_reminder_minutes: reminderMinutes.length ? reminderMinutes : [1440, 60],
+    p_reminder_minutes: reminderMinutes.length
+      ? reminderMinutes
+      : [10080, 1440, 60],
     p_whatsapp_enabled: formData.get("whatsapp_enabled") === "on",
   });
 
@@ -97,17 +116,23 @@ export async function scheduleMeetingAction(
           location: textValue(formData, "location"),
           meetingUrl,
           startsAt: startsAt.toISOString(),
-          endsAt: new Date(startsAt.getTime() + durationMinutes * 60_000).toISOString(),
+          endsAt: new Date(
+            startsAt.getTime() + durationMinutes * 60_000,
+          ).toISOString(),
         },
-        recipients ?? []
+        recipients ?? [],
       );
       emailMessage = ` Email invitations sent to ${emailCount} registered member${emailCount === 1 ? "" : "s"}.`;
     } catch (emailError) {
       console.error("meeting-invitations:send-failed", {
         meetingId,
-        message: emailError instanceof Error ? emailError.message : "Unknown email error",
+        message:
+          emailError instanceof Error
+            ? emailError.message
+            : "Unknown email error",
       });
-      emailMessage = " The meeting was saved, but member email delivery needs attention.";
+      emailMessage =
+        " The meeting was saved, but member email delivery needs attention.";
     }
   }
 
@@ -132,7 +157,7 @@ export async function scheduleMeetingAction(
             `${process.env.NEXT_PUBLIC_SITE_URL || "https://giefa.org"}/meetings/${meetingId}`,
           ]
             .filter(Boolean)
-            .join("\n")
+            .join("\n"),
         )}`
       : undefined,
   };
@@ -155,7 +180,7 @@ export async function cancelMeetingAction(formData: FormData) {
 
 export async function saveReminderPreferencesAction(
   _previousState: MeetingActionState,
-  formData: FormData
+  formData: FormData,
 ): Promise<MeetingActionState> {
   const phone = textValue(formData, "phone_e164");
   const timeZone = textValue(formData, "time_zone") || "UTC";
@@ -171,7 +196,10 @@ export async function saveReminderPreferencesAction(
     };
   }
   if (optedIn && !phone) {
-    return { ok: false, message: "Add your WhatsApp number before enabling reminders." };
+    return {
+      ok: false,
+      message: "Add your WhatsApp number before enabling reminders.",
+    };
   }
 
   const supabase = await supabaseServer();
@@ -181,7 +209,7 @@ export async function saveReminderPreferencesAction(
       p_phone_e164: phone.replace(/[\s()-]/g, ""),
       p_time_zone: timeZone,
       p_whatsapp_opt_in: optedIn,
-    }
+    },
   );
 
   if (error) return { ok: false, message: error.message };

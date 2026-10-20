@@ -62,6 +62,19 @@ export type AuditLogRecord = {
   created_at: string | null;
 };
 
+export type GeneralSecretaryTransferRecord = {
+  id: string;
+  outgoing_member_id: string | null;
+  incoming_member_id: string | null;
+  approved_by: string | null;
+  outgoing_member_name: string;
+  incoming_member_name: string;
+  approved_by_name: string;
+  incoming_previous_role: string;
+  reason: string;
+  approved_at: string;
+};
+
 export type NotificationRecord = {
   id: string;
   member_id: string;
@@ -74,10 +87,7 @@ export type NotificationRecord = {
 };
 
 export type DepositSubmissionStatus =
-  | "submitted"
-  | "needs_review"
-  | "approved"
-  | "rejected";
+  "submitted" | "needs_review" | "approved" | "rejected";
 
 export type DepositSubmissionRecord = {
   id: string;
@@ -212,7 +222,9 @@ export async function getCurrentMember() {
 
   const { data } = await supabase
     .from("members")
-    .select("id, auth_user_id, first_name, last_name, email, role, status, created_at")
+    .select(
+      "id, auth_user_id, first_name, last_name, email, role, status, created_at",
+    )
     .eq("auth_user_id", session.user.id)
     .maybeSingle<MemberRecord>();
 
@@ -225,7 +237,9 @@ export async function getMembers(status?: MemberStatus) {
   const supabase = await supabaseServer();
   let query = supabase
     .from("members")
-    .select("id, auth_user_id, first_name, last_name, email, role, status, created_at")
+    .select(
+      "id, auth_user_id, first_name, last_name, email, role, status, created_at",
+    )
     .order("created_at", { ascending: false });
 
   if (status) {
@@ -249,7 +263,9 @@ export async function getEmergencyRequests(status?: string) {
   const supabase = await supabaseServer();
   let query = supabase
     .from("emergency_requests")
-    .select("id, member_id, amount, status, approved_by, approved_at, created_at")
+    .select(
+      "id, member_id, amount, status, approved_by, approved_at, created_at",
+    )
     .order("created_at", { ascending: false });
 
   if (status) {
@@ -264,7 +280,9 @@ export async function getMonthlyContributions() {
   const supabase = await supabaseServer();
   const { data } = await supabase
     .from("monthly_contributions")
-    .select("id, member_id, month, amount, emergency_amount, investment_amount, created_at")
+    .select(
+      "id, member_id, month, amount, emergency_amount, investment_amount, created_at",
+    )
     .order("created_at", { ascending: false });
 
   return (data ?? []) as MonthlyContributionRecord[];
@@ -274,13 +292,17 @@ export async function getEmergencyFunds() {
   const supabase = await supabaseServer();
   const { data, error } = await supabase
     .from("emergency_funds")
-    .select("id, member_id, total_contributed, total_withdrawn, available, request_cycle_count, last_refill_at, created_at")
+    .select(
+      "id, member_id, total_contributed, total_withdrawn, available, request_cycle_count, last_refill_at, created_at",
+    )
     .order("created_at", { ascending: false });
 
   if (error) {
     const { data: fallback } = await supabase
       .from("emergency_funds")
-      .select("id, member_id, total_contributed, total_withdrawn, available, created_at")
+      .select(
+        "id, member_id, total_contributed, total_withdrawn, available, created_at",
+      )
       .order("created_at", { ascending: false });
 
     return (fallback ?? []) as EmergencyFundRecord[];
@@ -310,6 +332,19 @@ export async function getAuditLogs() {
   return (data ?? []) as AuditLogRecord[];
 }
 
+export async function getGeneralSecretaryTransfers() {
+  const supabase = await supabaseServer();
+  const { data } = await supabase
+    .from("general_secretary_transfers")
+    .select(
+      "id, outgoing_member_id, incoming_member_id, approved_by, outgoing_member_name, incoming_member_name, approved_by_name, incoming_previous_role, reason, approved_at",
+    )
+    .order("approved_at", { ascending: false })
+    .limit(50);
+
+  return (data ?? []) as GeneralSecretaryTransferRecord[];
+}
+
 export async function getNotifications() {
   const supabase = await supabaseServer();
   const { data, error } = await supabase
@@ -336,7 +371,7 @@ export async function getDepositSubmissions(status?: DepositSubmissionStatus) {
   let query = supabase
     .from("deposit_submissions")
     .select(
-      "id, member_id, contribution_month, amount, emergency_amount, investment_amount, deposit_date, bank_reference, sender_name, proof_url, extracted_text, confidence, status, reviewed_by, reviewed_at, rejection_reason, created_at"
+      "id, member_id, contribution_month, amount, emergency_amount, investment_amount, deposit_date, bank_reference, sender_name, proof_url, extracted_text, confidence, status, reviewed_by, reviewed_at, rejection_reason, created_at",
     )
     .order("created_at", { ascending: false });
 
@@ -353,7 +388,7 @@ export async function getBankStatementImports() {
   const { data } = await supabase
     .from("bank_statement_imports")
     .select(
-      "id, reporting_month, statement_file_url, original_file_name, opening_balance, closing_balance, notes, status, uploaded_by, created_at"
+      "id, reporting_month, statement_file_url, original_file_name, opening_balance, closing_balance, notes, status, uploaded_by, created_at",
     )
     .order("created_at", { ascending: false });
 
@@ -365,7 +400,7 @@ export async function getBankStatementTransactions(importId?: string) {
   let query = supabase
     .from("bank_statement_transactions")
     .select(
-      "id, statement_import_id, transaction_date, description, reference, debit, credit, running_balance, matched_submission_id, match_status, created_at"
+      "id, statement_import_id, transaction_date, description, reference, debit, credit, running_balance, matched_submission_id, match_status, created_at",
     )
     .order("transaction_date", { ascending: false });
 
@@ -382,7 +417,7 @@ export async function getFinanceMonthlyReports() {
   const { data, error } = await supabase
     .from("finance_monthly_reports")
     .select(
-      "id, reporting_month, statement_import_id, opening_balance, closing_balance, total_deposits, approved_member_deposits, unmatched_deposits, member_count, exception_count, notes, status, prepared_by, created_at, updated_at, manual_interest_amount, calculated_interest_amount, variance_amount, variance_status"
+      "id, reporting_month, statement_import_id, opening_balance, closing_balance, total_deposits, approved_member_deposits, unmatched_deposits, member_count, exception_count, notes, status, prepared_by, created_at, updated_at, manual_interest_amount, calculated_interest_amount, variance_amount, variance_status",
     )
     .order("reporting_month", { ascending: false });
 
@@ -390,7 +425,7 @@ export async function getFinanceMonthlyReports() {
     const { data: fallback } = await supabase
       .from("finance_monthly_reports")
       .select(
-        "id, reporting_month, statement_import_id, opening_balance, closing_balance, total_deposits, approved_member_deposits, unmatched_deposits, member_count, exception_count, notes, status, prepared_by, created_at, updated_at"
+        "id, reporting_month, statement_import_id, opening_balance, closing_balance, total_deposits, approved_member_deposits, unmatched_deposits, member_count, exception_count, notes, status, prepared_by, created_at, updated_at",
       )
       .order("reporting_month", { ascending: false });
 
@@ -405,7 +440,7 @@ export async function getFinanceInterestAllocations(reportId?: string) {
   let query = supabase
     .from("finance_interest_allocations")
     .select(
-      "id, report_id, reporting_month, member_id, opening_investment_balance, month_investment_deposits, weighted_balance, allocation_weight, interest_amount, days_in_month, calculation_method, generated_at"
+      "id, report_id, reporting_month, member_id, opening_investment_balance, month_investment_deposits, weighted_balance, allocation_weight, interest_amount, days_in_month, calculation_method, generated_at",
     )
     .order("interest_amount", { ascending: false });
 
@@ -425,7 +460,7 @@ export async function getFinanceReportEditRequests(reportId?: string) {
   let query = supabase
     .from("finance_report_edit_requests")
     .select(
-      "id, report_id, requested_by, approved_by, reason, chairman_note, status, created_at, approved_at, applied_at"
+      "id, report_id, requested_by, approved_by, reason, chairman_note, status, created_at, approved_at, applied_at",
     )
     .order("created_at", { ascending: false });
 
@@ -442,7 +477,7 @@ export async function getFinanceReportEditRequests(reportId?: string) {
 
 export function sumBy<T>(
   rows: T[],
-  selector: (row: T) => number | null | undefined
+  selector: (row: T) => number | null | undefined,
 ) {
   return rows.reduce((total, row) => total + Number(selector(row) ?? 0), 0);
 }

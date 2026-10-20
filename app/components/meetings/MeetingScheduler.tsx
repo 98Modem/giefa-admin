@@ -17,10 +17,10 @@ function utcValue(localValue: string) {
 }
 
 export function MeetingScheduler() {
-  const [state, action, pending] = useActionState(
-    scheduleMeetingAction,
-    { ok: false, message: "" }
-  );
+  const [state, action, pending] = useActionState(scheduleMeetingAction, {
+    ok: false,
+    message: "",
+  });
   const [startLocal, setStartLocal] = useState("");
   const timeZone = useBrowserTimeZone();
   const startsAtUtc = useMemo(() => utcValue(startLocal), [startLocal]);
@@ -39,7 +39,8 @@ export function MeetingScheduler() {
             Schedule a meeting
           </h2>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Times are saved in UTC and shown to every member in their own region.
+            Times are saved in UTC and shown to every member in their own
+            region.
           </p>
         </div>
       </div>
@@ -163,12 +164,15 @@ export function MeetingScheduler() {
             [60, "1 hour before"],
             [15, "15 minutes before"],
           ].map(([value, label]) => (
-            <label key={value} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <label
+              key={value}
+              className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300"
+            >
               <input
                 type="checkbox"
                 name="reminder_minutes"
                 value={value}
-                defaultChecked={value === 1440 || value === 60}
+                defaultChecked={[10080, 1440, 60].includes(Number(value))}
                 className="h-4 w-4 accent-brand-500"
               />
               {label}
@@ -182,7 +186,8 @@ export function MeetingScheduler() {
             defaultChecked
             className="mt-0.5 h-4 w-4 accent-brand-500"
           />
-          Queue reminders for members who have opted in and saved a WhatsApp number.
+          Queue reminders for members who have opted in and saved a WhatsApp
+          number.
         </label>
       </fieldset>
 

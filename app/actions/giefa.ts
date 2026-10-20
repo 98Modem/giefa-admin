@@ -17,20 +17,7 @@ function assertOk(error: { message: string } | null, action: string) {
   }
 }
 
-function isMissingRpc(error: { code?: string; message?: string } | null) {
-  return (
-    error?.code === "PGRST202" ||
-    error?.message?.toLowerCase().includes("could not find the function") ||
-    error?.message?.toLowerCase().includes("function public.assign_member_role")
-  );
-}
-
-const ASSIGNABLE_ROLES: Role[] = [
-  "chairman",
-  "treasurer",
-  "general_sec",
-  "member",
-];
+const ASSIGNABLE_ROLES: Role[] = ["chairman", "treasurer", "member"];
 
 function isAssignableRole(value: string): value is Role {
   return ASSIGNABLE_ROLES.includes(value as Role);
@@ -62,7 +49,10 @@ export async function createEmergencyRequest(formData: FormData) {
     .from("emergency_funds")
     .select("available, request_cycle_count")
     .eq("member_id", member.id)
-    .maybeSingle<{ available: number | null; request_cycle_count?: number | null }>();
+    .maybeSingle<{
+      available: number | null;
+      request_cycle_count?: number | null;
+    }>();
   let fundRecord = emergencyFund;
 
   if (fundError) {
@@ -84,7 +74,9 @@ export async function createEmergencyRequest(formData: FormData) {
   });
 
   if (!decision.allowed) {
-    throw new Error(decision.reason ?? "This emergency request is not available.");
+    throw new Error(
+      decision.reason ?? "This emergency request is not available.",
+    );
   }
 
   const { count: pendingCount, error: pendingError } = await supabase
@@ -95,7 +87,9 @@ export async function createEmergencyRequest(formData: FormData) {
   assertOk(pendingError, "Check pending emergency requests");
 
   if ((pendingCount ?? 0) > 0) {
-    throw new Error("You already have an emergency request waiting for treasurer review.");
+    throw new Error(
+      "You already have an emergency request waiting for treasurer review.",
+    );
   }
 
   const { error } = await supabase.from("emergency_requests").insert({
@@ -239,81 +233,16 @@ export async function assignMemberRole(formData: FormData) {
 
   const { data: actor } = await supabase
     .from("members")
-    .select("id, role, status")
+    .select("id")
     .eq("auth_user_id", session.user.id)
-    .maybeSingle<{ id: string; role: Role; status: string }>();
+    .maybeSingle<{ id: string }>();
 
-  if (!actor || actor.status !== "approved") {
-    throw new Error("Only approved leadership users can assign roles.");
-  }
-
-  if (!["chairman", "admin"].includes(actor.role)) {
-    throw new Error("Only chairman or admin can assign association roles.");
-  }
-
-  const { data: target } = await supabase
-    .from("members")
-    .select("id, first_name, last_name, role, status")
-    .eq("id", memberId)
-    .maybeSingle<{
-      id: string;
-      first_name: string | null;
-      last_name: string | null;
-      role: Role;
-      status: string;
-    }>();
-
-  if (!target || target.status !== "approved") {
-    throw new Error("Roles can only be assigned to approved active members.");
-  }
-
-  if (actor.role === "chairman" && nextRole === "admin") {
-    throw new Error("Chairman cannot assign the technical admin role.");
-  }
-
-  const demotingChairman = target.role === "chairman" && nextRole !== "chairman";
-  const selfChange = actor.id === target.id;
-
-  if (demotingChairman && actor.role !== "admin") {
-    const { count } = await supabase
-      .from("members")
-      .select("id", { count: "exact", head: true })
-      .eq("role", "chairman")
-      .eq("status", "approved")
-      .neq("id", target.id);
-
-    if (!count) {
-      throw new Error(
-        "Assign another approved member as chairman before the current chairman changes role."
-      );
-    }
-  }
-
-  const { error: rpcError } = await supabase.rpc("assign_member_role", {
-    p_target_member_id: target.id,
+  const selfChange = actor?.id === memberId;
+  const { error } = await supabase.rpc("assign_member_role_v2", {
+    p_member_id: memberId,
     p_next_role: nextRole,
   });
-
-  if (rpcError && !isMissingRpc(rpcError)) {
-    assertOk(rpcError, "Assign member role");
-  }
-
-  if (isMissingRpc(rpcError)) {
-    const { error } = await supabase
-      .from("members")
-      .update({ role: nextRole })
-      .eq("id", target.id);
-    assertOk(error, "Assign member role");
-  }
-
-  await supabase.from("notifications").insert({
-    member_id: target.id,
-    title: "Role updated",
-    message: `Your GIEFA role has changed to ${nextRole.replace("_", " ")}.`,
-    type: "role_updated",
-    link_url: "/dashboard",
-    read: false,
-  });
+  assertOk(error, "Assign member role");
 
   revalidatePath("/governance/change-roles");
   revalidatePath("/chairman/finance-overview");
@@ -327,7 +256,7 @@ export async function assignMemberRole(formData: FormData) {
 
   redirect(
     `/governance/change-roles?role_updated=${encodeURIComponent(
-      target.id
-    )}&to=${encodeURIComponent(nextRole)}`
+      memberId,
+    )}&to=${encodeURIComponent(nextRole)}`,
   );
 }

@@ -231,6 +231,10 @@ export const SIDEBAR_MENU: SidebarItem[] = [
         title: "Change Roles",
         href: "/governance/change-roles",
       },
+      {
+        title: "Leadership Transfers",
+        href: "/governance/leadership",
+      },
     ],
   },
 
