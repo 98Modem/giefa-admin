@@ -40,7 +40,7 @@ WHATSAPP_GRAPH_API_VERSION=v26.0
 
 ## 4. Cron plan requirement
 
-`vercel.json` checks due reminders every 15 minutes. As of January 2026, Vercel Hobby permits only daily cron jobs; this schedule therefore requires Vercel Pro or Enterprise. If GIEFA remains on Hobby, use Supabase Cron or another trusted scheduler to call the same endpoint every 15 minutes with:
+The production project is currently on Vercel Hobby, which permits only daily cron jobs. For that reason, `vercel.json` keeps the existing daily Supabase health check but does not register the meeting-reminder endpoint as a Vercel Cron Job. To deliver the one-week, one-day, and one-hour reminders accurately, upgrade to Vercel Pro or use Supabase Cron or another trusted scheduler to call the same endpoint every 15 minutes with:
 
 ```http
 Authorization: Bearer <CRON_SECRET>

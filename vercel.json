@@ -4,10 +4,6 @@
     {
       "path": "/api/cron/supabase-health",
       "schedule": "17 12 * * *"
-    },
-    {
-      "path": "/api/cron/meeting-reminders",
-      "schedule": "*/15 * * * *"
     }
   ]
 }
