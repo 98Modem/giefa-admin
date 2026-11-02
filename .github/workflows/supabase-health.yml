@@ -1,0 +1,33 @@
+name: Supabase Health Check
+
+on:
+  schedule:
+    - cron: "23 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supabase-health-check
+  cancel-in-progress: false
+
+jobs:
+  query-databases:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    env:
+      HEALTH_URL: https://www.giefa.org/api/cron/supabase-health
+      CRON_SECRET: ${{ secrets.GIEFA_CRON_SECRET }}
+    steps:
+      - name: Run protected health check
+        shell: bash
+        run: |
+          test -n "$CRON_SECRET" || { echo "GIEFA_CRON_SECRET is not configured."; exit 1; }
+          response="$(curl --silent --show-error --fail-with-body \
+            --retry 2 --retry-all-errors \
+            --connect-timeout 15 --max-time 60 \
+            --header "Authorization: Bearer $CRON_SECRET" \
+            --header "X-Health-Source: github-actions" \
+            "$HEALTH_URL")"
+          echo "$response"

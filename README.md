@@ -28,10 +28,24 @@ Use Vercel for the Next.js app and API routes. DreamHost remains the domain regi
 
 Required Vercel environment variables are listed in `.env.production.example`.
 
-The production deployment runs a protected Supabase health check every day at
-12:17 UTC. Vercel calls `/api/cron/supabase-health`, which performs a read-only,
-single-row query against the `members` table. Set `CRON_SECRET` in the Vercel
-project so only authenticated cron requests can run the check.
+The production deployment uses a free, protected health-check arrangement for
+both Supabase projects:
+
+- GitHub Actions calls `/api/cron/supabase-health` every six hours at 00:23,
+  06:23, 12:23, and 18:23 UTC.
+- The existing Vercel Hobby cron calls the same endpoint daily at 12:17 UTC as
+  a fallback.
+- Each call performs one legitimate, read-only query against GIEFA `members`
+  and Game Predictor `matches`, then stores a sanitized audit row in
+  `system_health_check_runs`.
+- A failed project returns HTTP 503, fails the GitHub Actions run, and sends an
+  email when Resend and `GIEFA_HEALTH_ALERT_EMAIL` (or
+  `GIEFA_EMAIL_REPLY_TO`) are configured.
+
+Set `CRON_SECRET`, both projects' server-side Supabase variables, and the email
+variables in Vercel. Add the same `CRON_SECRET` to the GitHub repository as an
+Actions secret named `GIEFA_CRON_SECRET`. Never expose either service-role key
+as a `NEXT_PUBLIC_` variable.
 
 Important production settings:
 
